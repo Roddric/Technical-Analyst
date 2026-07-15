@@ -55,6 +55,20 @@ assets (`effective_breadth` 1.6–3.5); the rest are honestly mute or single-set
 Set decorrelation is measured in-sample and degrades somewhat out-of-sample — so
 never oversell "diversification"; lean on the evidence weight, not the count.
 
+## Reproducibility (stable by construction)
+
+Same inputs → same decision, verified byte-identical across repeated runs. Three
+things guarantee it:
+
+1. **Data is pinned.** `price_cache/<ticker>.csv` is written on the first fetch
+   and read verbatim forever after — it never silently refetches or drifts. To
+   intentionally advance the snapshot to newer bars, delete that CSV and re-run.
+2. **The engine is deterministic.** Frozen roster + rule-derived levels +
+   evidence-weighted arbiter — no randomness in the decision path.
+3. **Narration:** run OpenClaw at **temperature 0** and echo the `council`
+   verdict verbatim (prompt.py requires this). Identical decisions, near-identical
+   prose — the achievable definition of stable.
+
 ## What's under the hood (you don't need to run these directly)
 
 `indicators.py` classic suite · `selection.py` frozen decorrelated-set selection

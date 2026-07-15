@@ -230,4 +230,8 @@ OUTPUT FORMAT
 - Use clean section headers matching the structure above.
 - Numbers: 2 decimal places for prices, 4 decimal places for MACD values.
 - Bias verdict must be on its own line, clearly labeled.
+- In SUMMARY & BIAS, echo the council verdict verbatim as a fenced block
+  (direction, conviction, effective_breadth, entry/stop/target). This preserves
+  the exact deterministic decision in the report, so identical inputs yield
+  identical decisions in the prose, not just in the JSON.
 """
