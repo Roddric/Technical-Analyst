@@ -71,24 +71,33 @@ Algorithm:
 Gate outcome to check: does `effective_n` climb above ~1.5, and how large is K?
 If K is only 2, accept a 2-set council honestly rather than forcing 6.
 
-### Gate verdict (2026-07-15) — PASS, with one caveat
+### Gate verdict (2026-07-15) — PARTIAL PASS (on FROZEN rosters)
 
-Ran selection across the 14-asset universe:
-- **K = 6 is reachable** (greedy hits the MAX_SETS cap on almost every asset), so
-  in-sample-decorrelated bundles do exist among the 69 indicators.
-- **effective_n rose from ~1.0 (M1 round-robin) to 1.6–3.5** on signal-bearing
-  assets (^NDX 3.5, ^FTSE 3.0, CL=F 3.0, ^KS11 1.9, ^TWII 1.6). The ensemble is
-  genuine now; several assets remain fully mute (eff_n 0), which is honest.
-- **Caveat:** holdout error-corr (~0.70) exceeds train (~0.61). Decorrelation is
-  partly an in-sample artifact — the diversification eff_n implies is overstated
-  out-of-sample. Greedy threshold enforcement itself is correct (verified: max
-  internal train pairwise corr 0.593 < 0.60).
+Selection is now **frozen**: `freeze_roster` selects once on the train slice,
+persists member names + train boundary + config to `results/rosters/<key>.json`,
+and `build_selected_sets(roster_key=…)` reuses it — never recomputed per call.
+Verified: growing the data does not change a frozen roster; a config change
+invalidates it. The gate below rests on frozen rosters (reproducible), and the
+numbers match the earlier live run (so those were not a recomputation artifact).
 
-**Follow-up options (not blocking):** (a) surface holdout decorrelation in the
-report so diversification is never oversold; (b) tighten the train threshold to
-leave OOS buffer; (c) a 3-way split with a validation-slice decorrelation gate —
-rejected for now because per-asset power is already thin and a third slice makes
-it worse. Chosen for now: (a).
+- **K = 6 is reachable** (BTC 5) — in-sample-decorrelated bundles exist among the
+  69 indicators.
+- **effective_n > 1.5 on only 5/14 assets** (^NDX 3.5, ^FTSE 3.0, CL=F 3.0,
+  ^KS11 1.9, ^TWII 1.6). The other 9 are mute (eff_n 0) or single-set (~1.0). So
+  the council is a genuine ensemble only where signal exists; elsewhere it
+  honestly collapses to one bet or silence.
+- **Decorrelation partly fails OOS:** train corr ~0.61 vs holdout ~0.70. Greedy
+  enforcement is correct (max internal train pairwise 0.593 < 0.60); the gap is
+  genuine in-sample/out-of-sample drift, not a bug.
+
+**Read:** a partial pass — real where signal exists, silent where it doesn't;
+the non-overfit outcome the gate was designed to find. Because it is frozen, a
+backtest/scorecard (M3) can trust it.
+
+**Follow-up (not blocking):** surface holdout decorrelation in the report so
+diversification is never oversold; optionally periodic re-freeze. A 3-way split
+with a validation-slice decorrelation gate was rejected — per-asset power is
+already thin and a third slice worsens it.
 
 ## M1 empirical findings (2026-07-15, mechanical core complete)
 

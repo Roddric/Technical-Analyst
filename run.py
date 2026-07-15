@@ -34,12 +34,13 @@ def analyze_ticker(ticker: str, mode: str | None = None) -> plan_mod.Plan | None
         df = df[df["close"].notna()]          # drop trailing/partial NaN-close bars
     if df is None or len(df) < config.REGIME_MA_LEN + config.HORIZON:
         return None
-    return analyze_asset(df, ticker, mode or _safe_return_mode(ticker))
+    return analyze_asset(df, ticker, mode or _safe_return_mode(ticker), roster_key=ticker)
 
 
-def analyze_asset(df, asset: str, mode: str = "log", allowed=None) -> plan_mod.Plan:
+def analyze_asset(df, asset: str, mode: str = "log", allowed=None,
+                  roster_key: str | None = None) -> plan_mod.Plan:
     reg = regime_mod.classify_regime(df)          # context only; never feeds the arbiter
-    signals = selection_mod.build_selected_sets(df, mode)
+    signals = selection_mod.build_selected_sets(df, mode, roster_key=roster_key)
     weights = evidence_mod.compute_weights(signals, df, mode, allowed=allowed)
     latest = {n: (float(s.iloc[-1]) if s.notna().iloc[-1] else 0.0)
               for n, s in signals.items()}
@@ -61,7 +62,7 @@ def run_universe(assets=None) -> list[plan_mod.Plan]:
         if df is None or len(df) < config.REGIME_MA_LEN + config.HORIZON:
             continue
         mode = return_mode(a)
-        signals = selection_mod.build_selected_sets(df, mode)
+        signals = selection_mod.build_selected_sets(df, mode, roster_key=a)
         stats = evidence_mod.set_ic_stats(signals, df, mode)
         loaded.append((a, df, mode))
         for name, (_ic, t, _n) in stats.items():
@@ -72,7 +73,7 @@ def run_universe(assets=None) -> list[plan_mod.Plan]:
     plans = []
     for a, df, mode in loaded:
         allowed = {name for (asset_k, name) in survivors if asset_k == a}
-        plans.append(analyze_asset(df, a, mode, allowed=allowed))
+        plans.append(analyze_asset(df, a, mode, allowed=allowed, roster_key=a))
     return plans
 
 

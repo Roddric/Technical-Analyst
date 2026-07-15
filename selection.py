@@ -5,7 +5,9 @@ TRAIN slice only; the holdout is never consulted during selection, so the search
 over indicator combinations cannot leak look-ahead into the later OOS scoring.
 Train forward returns are computed from `close[:split]` alone, so even the last
 HORIZON train bars never peek across the split. K emerges from the data (<=MAX_SETS)."""
+import json
 from itertools import product
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,6 +19,45 @@ import sets as sets_mod
 
 SLOTS = sets_mod.SLOTS
 NULL_NAME = sets_mod.NULL_NAME
+ROSTER_DIR = Path(__file__).resolve().parent / "results" / "rosters"
+
+
+def _roster_config() -> dict:
+    """The config knobs that define a selection; a change invalidates a frozen roster."""
+    return {"SLOT_KEEP": config.SLOT_KEEP, "MAX_SETS": config.MAX_SETS,
+            "DECORR_THRESHOLD": config.DECORR_THRESHOLD, "ERR_WINDOW": config.ERR_WINDOW,
+            "HORIZON": config.HORIZON, "TRAIN_FRAC": config.TRAIN_FRAC}
+
+
+def _roster_path(key: str) -> Path:
+    safe = "".join(ch if ch.isalnum() else "_" for ch in key)
+    return ROSTER_DIR / f"{safe}.json"
+
+
+def load_frozen_roster(key: str) -> list[list[str]] | None:
+    """Return a previously frozen roster iff it exists and was built under the
+    current selection config; else None."""
+    path = _roster_path(key)
+    if not path.exists():
+        return None
+    rec = json.loads(path.read_text())
+    if rec.get("config") != _roster_config():
+        return None                      # config changed -> stale, must re-freeze
+    return [list(b) for b in rec["roster"]]
+
+
+def freeze_roster(df: pd.DataFrame, key: str, mode: str = "log") -> list[list[str]]:
+    """Select the roster on the train slice and persist it (member names + train
+    boundary + config). Frozen: never recomputed once written for this key/config."""
+    roster = select_roster(df, mode)
+    split = sets_mod._train_slice(len(df))
+    ROSTER_DIR.mkdir(parents=True, exist_ok=True)
+    _roster_path(key).write_text(json.dumps({
+        "key": key, "roster": roster, "config": _roster_config(),
+        "n_train": int(split), "n_total_at_freeze": int(len(df)),
+        "train_end": str(df.index[split - 1].date()),
+    }, indent=2))
+    return roster
 
 
 def _train_fwd(df: pd.DataFrame, split: int, mode: str) -> np.ndarray:
@@ -109,22 +150,36 @@ def select_roster(df: pd.DataFrame, mode: str = "log") -> list[list[str]]:
     return roster
 
 
-def build_selected_sets(df: pd.DataFrame, mode: str = "log") -> dict[str, pd.Series]:
+def build_selected_sets(df: pd.DataFrame, mode: str = "log",
+                        roster_key: str | None = None) -> dict[str, pd.Series]:
     """Full-length composite per selected bundle (Set1..SetK) plus the Null
-    tripwire. Composites span full history; signs and selection use train only."""
+    tripwire. Composites span full history; signs and selection use train only.
+
+    If `roster_key` is given, the roster is FROZEN: loaded from disk if present
+    (built under the current config), otherwise selected once and persisted, and
+    never recomputed again. With no key the roster is selected live (tests)."""
     n = len(df)
     split = sets_mod._train_slice(n)
     fwd_train = _train_fwd(df, split, mode)
     by_slot = sets_mod._candidates_by_slot(df)
     lookup = {z.name: z for zs in by_slot.values() for z in zs}
 
+    if roster_key is not None:
+        roster = load_frozen_roster(roster_key) or freeze_roster(df, roster_key, mode)
+    else:
+        roster = select_roster(df, mode)
+
     signals: dict[str, pd.Series] = {}
-    for i, names in enumerate(select_roster(df, mode), start=1):
+    for i, names in enumerate(roster, start=1):
         members = []
         for nm in names:
-            z = lookup[nm]
+            z = lookup.get(nm)
+            if z is None:                    # frozen member not computable on this df
+                continue
             sign = _sign(z.to_numpy("float64")[:split], fwd_train)
             members.append(sign * z)
+        if not members:
+            continue
         comp = pd.concat(members, axis=1).mean(axis=1)
         signals[f"Set{i}"] = comp.rename(f"Set{i}")
 
