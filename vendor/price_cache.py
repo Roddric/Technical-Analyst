@@ -1,10 +1,10 @@
 """
 price_cache.py
 ==============
-Thin on-disk cache of normalized daily OHLCV from Yahoo Finance, to survive
-yfinance rate-limiting across repeated backtest runs. Successful fetches are
-cached to ./price_cache/<ticker>.csv; failed fetches are NOT cached (so a later
-run retries only the still-missing tickers).
+Thin on-disk cache of normalized daily OHLCV fetched via akshare (A-share / HK /
+US, routed by symbol shape). Cache survives across runs and pins each ticker's
+snapshot. Successful fetches are cached to ./price_cache/<ticker>.csv; failed
+fetches are NOT cached (so a later run retries only the still-missing tickers).
 
 Contract: DatetimeIndex (naive, normalized) named "Date"; lowercase columns
 open/high/low/close/volume; auto-adjusted prices.
@@ -31,21 +31,52 @@ def _path(tkr: str) -> str:
     return os.path.join(CACHE_DIR, f"{_safe(tkr)}.csv")
 
 
+_ASHARE_COLS = {"日期": "date", "开盘": "open", "收盘": "close",
+                "最高": "high", "最低": "low", "成交量": "volume"}
+
+
 def _fetch(tkr: str) -> pd.DataFrame | None:
-    """Fetch full history from Yahoo. Uses Ticker.history rather than
-    yf.download — the latter intermittently fails (TLS/curl) where
-    Ticker.history succeeds for the same symbol."""
-    import yfinance as yf
+    """Fetch full daily history via akshare, routed by symbol shape:
+      - 6 digits            -> A-share  (stock_zh_a_hist, qfq-adjusted)
+      - <=5 digits          -> Hong Kong (stock_hk_daily, qfq-adjusted)
+      - otherwise (letters) -> US        (stock_us_daily)
+    Symbols may carry a market suffix (600519.SH, 00700.HK, AAPL.US) — it is
+    stripped. Returns the normalized lowercase-OHLCV frame the rest of the code
+    expects, or None on any failure."""
+    import akshare as ak
+
+    sym = tkr.strip().upper()
+    for suf in (".SH", ".SS", ".SZ", ".HK", ".US", ".O", ".N"):
+        if sym.endswith(suf):
+            sym = sym[: -len(suf)]
+            break
+
     try:
-        h = yf.Ticker(tkr).history(period="max", auto_adjust=True)
-    except Exception:  # noqa: BLE001 — treat any fetch error as a miss
+        if sym.isdigit() and len(sym) == 6:                       # A-share
+            raw = ak.stock_zh_a_hist(symbol=sym, period="daily", adjust="qfq")
+            df = raw.rename(columns=_ASHARE_COLS)
+        elif sym.isdigit() and len(sym) <= 5:                     # Hong Kong
+            df = ak.stock_hk_daily(symbol=sym.zfill(5), adjust="qfq")
+        else:                                                     # US
+            df = ak.stock_us_daily(symbol=sym, adjust="qfq")
+    except Exception:  # noqa: BLE001 — any fetch/parse error is a miss
         return None
-    if h is None or len(h) == 0:
+    if df is None or len(df) == 0:
         return None
-    df = h.rename(columns=str.lower)[["open", "high", "low", "close", "volume"]]
-    df.index = pd.to_datetime(df.index).tz_localize(None).normalize()
-    df.index.name = "Date"
-    return df.dropna(how="all").sort_index()
+
+    df = df.rename(columns=str.lower)
+    need = ["open", "high", "low", "close", "volume"]
+    if "date" not in df.columns or any(c not in df.columns for c in need):
+        return None
+    d = pd.to_datetime(df["date"], errors="coerce")
+    if getattr(d.dt, "tz", None) is not None:
+        d = d.dt.tz_localize(None)
+    out = df[need].copy()
+    out.index = d.dt.normalize()
+    out.index.name = "Date"
+    for c in need:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    return out.dropna(how="all").sort_index()
 
 
 def load(tkr: str) -> pd.DataFrame | None:
@@ -81,7 +112,7 @@ def prime(tickers, sleep_s: float = 4.0) -> dict:
         else:
             status[tkr] = None
             print(f"  FAILED  {tkr:<11} (will retry next run)")
-        time.sleep(sleep_s)     # be gentle with yfinance
+        time.sleep(sleep_s)     # be gentle with the data source
     return status
 
 
