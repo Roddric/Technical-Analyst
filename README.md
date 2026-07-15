@@ -83,8 +83,31 @@ things guarantee it:
    verdict verbatim (prompt.py requires this). Identical decisions, near-identical
    prose — the achievable definition of stable.
 
+## Trade log (real track record)
+
+Every time `compute_indicators` produces an **actionable** council plan (long or
+short with levels — flat/veto are skipped), it is auto-logged to
+`results/trade_log.jsonl`. One open plan per ticker at a time.
+
+To score plans against what actually happened, run **daily after market close**:
+
+```bash
+python tools.py update_log
+```
+
+Each open plan is held until price **touches its stop or target** (no time cap):
+target-first = WIN (+R), stop-first = LOSS (−1R), a bar spanning both counts as
+the stop (conservative). Until a level is hit, the plan stays OPEN with a live
+unrealized P/L. The command prints a summary JSON whose `markdown` field is a
+ready-to-paste table (win rate, avg R, open positions).
+
+**For the bot:** run `python tools.py update_log` once daily after close and
+write/refresh the `markdown` table into a Feishu doc — that doc is the durable,
+auto-updating track record.
+
 ## What's under the hood (you don't need to run these directly)
 
 `indicators.py` classic suite · `selection.py` frozen decorrelated-set selection
 · `evidence.py` out-of-sample IC gate + FDR · `arbiter.py` deterministic decision
-· `risk.py` rule-derived levels · `run.py` pipeline. Tests in `tests/`.
+· `risk.py` rule-derived levels · `run.py` pipeline · `tradelog.py` plan log +
+outcome scoring. Tests in `tests/`.

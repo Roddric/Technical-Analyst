@@ -18,6 +18,7 @@ config.ensure_reuse_on_path()
 
 import indicators as ind
 import run
+import tradelog
 
 
 def _clean(obj):
@@ -72,21 +73,34 @@ def compute_indicators(ticker: str) -> dict:
     out = ind.compute_indicators(df)
     out["ticker"] = ticker
     out["council"] = council_verdict(ticker)
+    # Log the plan if it is actionable (one open plan per ticker; flat/veto skip).
+    entry_date = str(df.index[-1].date())
+    out["logged"] = tradelog.record_plan(ticker, out["council"], entry_date)
     return out
+
+
+def update_log() -> dict:
+    """Score every open plan against fresh prices; persist; return the summary
+    (with a Feishu-ready markdown table under 'markdown')."""
+    summary = tradelog.update_open_plans()
+    summary["markdown"] = tradelog.render_markdown(summary)
+    return summary
 
 
 _DISPATCH = {
     "get_stock_data": lambda a: get_stock_data(a[0], int(a[1]) if len(a) > 1 else 180),
     "compute_indicators": lambda a: compute_indicators(a[0]),
     "council": lambda a: council_verdict(a[0]),
+    "update_log": lambda a: update_log(),
 }
 
 
 def main(argv=None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if len(argv) < 2 or argv[0] not in _DISPATCH:
+    needs_ticker = argv[:1] != ["update_log"]
+    if not argv or argv[0] not in _DISPATCH or (needs_ticker and len(argv) < 2):
         print(json.dumps({"error": "usage: tools.py <get_stock_data|compute_indicators|"
-                                    "council> TICKER [n_rows]",
+                                    "council> TICKER [n_rows]  |  tools.py update_log",
                           "commands": list(_DISPATCH)}, indent=2))
         return
     result = _clean(_DISPATCH[argv[0]](argv[1:]))
