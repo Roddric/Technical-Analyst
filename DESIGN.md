@@ -71,6 +71,25 @@ Algorithm:
 Gate outcome to check: does `effective_n` climb above ~1.5, and how large is K?
 If K is only 2, accept a 2-set council honestly rather than forcing 6.
 
+### Gate verdict (2026-07-15) — PASS, with one caveat
+
+Ran selection across the 14-asset universe:
+- **K = 6 is reachable** (greedy hits the MAX_SETS cap on almost every asset), so
+  in-sample-decorrelated bundles do exist among the 69 indicators.
+- **effective_n rose from ~1.0 (M1 round-robin) to 1.6–3.5** on signal-bearing
+  assets (^NDX 3.5, ^FTSE 3.0, CL=F 3.0, ^KS11 1.9, ^TWII 1.6). The ensemble is
+  genuine now; several assets remain fully mute (eff_n 0), which is honest.
+- **Caveat:** holdout error-corr (~0.70) exceeds train (~0.61). Decorrelation is
+  partly an in-sample artifact — the diversification eff_n implies is overstated
+  out-of-sample. Greedy threshold enforcement itself is correct (verified: max
+  internal train pairwise corr 0.593 < 0.60).
+
+**Follow-up options (not blocking):** (a) surface holdout decorrelation in the
+report so diversification is never oversold; (b) tighten the train threshold to
+leave OOS buffer; (c) a 3-way split with a validation-slice decorrelation gate —
+rejected for now because per-asset power is already thin and a third slice makes
+it worse. Chosen for now: (a).
+
 ## M1 empirical findings (2026-07-15, mechanical core complete)
 
 Running the 14-asset batch surfaced two predicted limitations — both are the

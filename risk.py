@@ -29,8 +29,10 @@ def _atr(df: pd.DataFrame) -> float:
 def build_levels(df: pd.DataFrame, decision: arbiter.Decision) -> Levels:
     entry = float(df["close"].iloc[-1])
     atr = _atr(df)
-    if decision.direction == 0 or not np.isfinite(atr) or atr <= 0:
-        return Levels(entry, entry, entry, 0.0, True, "no direction or ATR unavailable")
+    if decision.direction == 0:
+        return Levels(entry, entry, entry, 0.0, True, "no set cleared the evidence gate")
+    if not np.isfinite(atr) or atr <= 0 or entry <= 0:
+        return Levels(entry, entry, entry, 0.0, True, "ATR unavailable")
 
     stop_dist = config.ATR_MULT_STOP * atr
     if decision.direction == 1:
@@ -40,6 +42,10 @@ def build_levels(df: pd.DataFrame, decision: arbiter.Decision) -> Levels:
         stop = entry + stop_dist
         target = entry - config.R_MULTIPLE * stop_dist
 
-    size = (config.RISK_BUDGET / stop_dist) * decision.conviction
+    # Notional fraction of capital sized so a stop-out loses ~RISK_BUDGET of
+    # capital, scaled by conviction and capped at 1x (no leverage in the report).
+    frac_stop = stop_dist / entry
+    size = min(1.0, (config.RISK_BUDGET / frac_stop) * decision.conviction)
     return Levels(entry, stop, target, float(size), False,
-                  f"ATR={atr:.4f}, {config.ATR_MULT_STOP}x stop, {config.R_MULTIPLE}R target")
+                  f"ATR={atr:.4f}, {config.ATR_MULT_STOP}x stop, {config.R_MULTIPLE}R target, "
+                  f"size risks {config.RISK_BUDGET:.1%} at stop")
