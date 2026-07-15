@@ -8,6 +8,7 @@ from pandasta_data import UNIVERSE, load_asset, return_mode
 
 import regime as regime_mod
 import sets as sets_mod
+import selection as selection_mod
 import evidence as evidence_mod
 import arbiter as arbiter_mod
 import risk as risk_mod
@@ -18,7 +19,7 @@ RESULTS = Path(__file__).resolve().parent / "results"
 
 def analyze_asset(df, asset: str, mode: str = "log", allowed=None) -> plan_mod.Plan:
     reg = regime_mod.classify_regime(df)          # context only; never feeds the arbiter
-    signals = sets_mod.build_set_signals(df, mode)
+    signals = selection_mod.build_selected_sets(df, mode)
     weights = evidence_mod.compute_weights(signals, df, mode, allowed=allowed)
     latest = {n: (float(s.iloc[-1]) if s.notna().iloc[-1] else 0.0)
               for n, s in signals.items()}
@@ -38,7 +39,7 @@ def run_universe(assets=None) -> list[plan_mod.Plan]:
         if df is None or len(df) < config.REGIME_MA_LEN + config.HORIZON:
             continue
         mode = return_mode(a)
-        signals = sets_mod.build_set_signals(df, mode)
+        signals = selection_mod.build_selected_sets(df, mode)
         stats = evidence_mod.set_ic_stats(signals, df, mode)
         loaded.append((a, df, mode))
         for name, (_ic, t, _n) in stats.items():

@@ -10,8 +10,11 @@ TA_FLAT_DIR = str(Path(__file__).resolve().parent.parent / "ta-flat-backtest")
 HORIZON = 5                # forward-return horizon (trading days)
 
 # Sets / decorrelation
-N_PERSONALITIES = 3        # Fast, Slow, Contrarian
-DECORR_THRESHOLD = 0.6     # max allowed |corr| between set signals (report if exceeded)
+N_PERSONALITIES = 3        # legacy round-robin roster size (superseded by selection)
+DECORR_THRESHOLD = 0.6     # max allowed |corr| between set (error) series
+SLOT_KEEP = 4              # top-K decorrelated indicators kept per slot before bundling
+MAX_SETS = 6               # cap on the greedily-selected decorrelated roster
+ERR_WINDOW = 63            # rolling window for the error (rolling-IC) series
 
 # Evidence weighting (unified power-gate + shrink via the HAC t-stat)
 TRAIN_FRAC = 0.7           # fit member signs on the first fraction; measure IC on the holdout

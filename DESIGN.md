@@ -47,6 +47,30 @@ grid-FDR only applies when scoring a batch together.
 - No intraday; daily cadence only.
 - No regime×sector conditioning in v1 (see Conditioning).
 
+## Option 1 (GATE before M2/M3): real decorrelated-set selection
+
+Replaces round-robin bundle construction. **All selection happens on the TRAIN
+slice; the holdout is touched only for final OOS scoring** — searching over
+indicator combinations is a look-ahead/overfitting magnet, so the roster must be
+chosen without ever seeing the scoring data (the sign-fit wall, one level up).
+
+Algorithm:
+1. **Train slice only.** Split at `TRAIN_FRAC`; everything below uses `[:split]`.
+2. **Per-slot reduction:** within each slot keep the top-`SLOT_KEEP` indicators by
+   train IC that are also mutually decorrelated on their **error series** (rolling
+   train IC), greedily. Bounds the search (top-4/slot → ≤256 bundles).
+3. **Candidate bundles:** Cartesian product of the kept per-slot reps → 4-slot
+   composites (mean of signed z, sign from train).
+4. **Greedy decorrelated roster:** start from the highest train-IC bundle; add the
+   next bundle whose max **error-series** correlation with the roster is below
+   `DECORR_THRESHOLD` and whose train IC is positive; stop when none qualifies.
+   **K emerges from the data** — this answers "do 5-6 decorrelated bundles exist?"
+5. **Holdout scoring unchanged:** the selected roster's sets get OOS IC → t-gate →
+   grid-FDR → weights, exactly as M1.
+
+Gate outcome to check: does `effective_n` climb above ~1.5, and how large is K?
+If K is only 2, accept a 2-set council honestly rather than forcing 6.
+
 ## M1 empirical findings (2026-07-15, mechanical core complete)
 
 Running the 14-asset batch surfaced two predicted limitations — both are the
@@ -111,8 +135,11 @@ prices ─► [1 regime: bull/bear/sideways]
 - `pandasta_data` — universe + cached prices (`load_asset`, `UNIVERSE`).
 - `pandasta_registry` — indicator definitions (`build_candidates`, `compute_candidate`).
 - `stats` — IC (`spearman_ic_hac`), `causal_zscore`, composite construction.
-- `quant_morning_brief` — LLM client + Telegram delivery pattern (secrets to be
-  moved to env vars during integration).
+- `quant_morning_brief` — reference only. **Delivery is NOT Telegram.** The
+  system emits code + a clean **markdown report**; those artifacts are handed to
+  a **Feishu bot connected to OpenClaw**, and OpenClaw performs the narration/
+  analysis. So the in-house narrator-LLM + Telegram components are replaced by
+  "emit well-structured md + code for OpenClaw to consume."
 
 ## The A/B (built in from day one)
 
