@@ -99,6 +99,18 @@ diversification is never oversold; optionally periodic re-freeze. A 3-way split
 with a validation-slice decorrelation gate was rejected — per-asset power is
 already thin and a third slice worsens it.
 
+**Two consequences to carry forward (not now-problems):**
+1. **effective_breadth is an upper bound, not exact.** It is computed from the
+   in-sample decorrelation structure, which decays OOS (0.61 → 0.70). So ^NDX's
+   3.5 overstates true breadth; treat every eff_n as optimistic and lean on the
+   evidence *weight*, not the *count*. The v2 fix (not a gate re-open) is to
+   select on a stricter decorrelation threshold, leaving OOS headroom.
+2. **M3 (arm-A vs arm-B "does debate help") is a 5-asset test, not 14.** Debate
+   can only add value where arm A is actually an ensemble — the 5 assets with
+   eff_n > 1.5. On the 9 mute/single-set assets there is nothing for it to beat.
+   This thins an already-thin sample and sharpens why M3 stays deferred: its
+   verdict would be even less conclusive than a 14-asset test implied.
+
 ## M1 empirical findings (2026-07-15, mechanical core complete)
 
 Running the 14-asset batch surfaced two predicted limitations — both are the

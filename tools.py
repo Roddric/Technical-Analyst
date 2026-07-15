@@ -47,7 +47,9 @@ def council_verdict(ticker: str) -> dict:
         "target": round(p.target, 4), "size_fraction": round(p.size, 5),
         "set_contributions": {k: round(v, 4) for k, v in p.set_contributions.items()},
         "note": "direction/conviction are a deterministic function of out-of-sample "
-                "IC; every number is rule-derived. eff_breadth<1.5 => one set dominates.",
+                "IC; every number is rule-derived. eff_breadth<1.5 => one set dominates. "
+                "eff_breadth is in-sample-optimistic (sets decorrelate less OOS), so it "
+                "is an upper bound — weight the evidence, not the count.",
     }
 
 
