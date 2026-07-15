@@ -30,12 +30,35 @@ prove whether the LLM debate adds anything at all.
 - Build the **A/B comparison** (mechanical evidence arm vs. rhetoric debate arm)
   into v1 so "try both, see which is better" is measurable from day one.
 
+## Scope note: single named stocks
+
+The 14-asset basket is only the default batch universe. The system must also run
+on a **specific stock** on demand. `analyze_asset(df, ticker)` is already
+ticker-agnostic — it works on any OHLCV frame — so a single stock is a
+first-class input. The only missing piece is a **data path for arbitrary
+tickers** (the current `load_asset` only knows the cached basket); add a
+fetch/loader (e.g. yfinance → same lowercase OHLCV schema) as a near-term item.
+For a one-off stock, call `analyze_asset(..., allowed=None)` (marginal t-gate);
+grid-FDR only applies when scoring a batch together.
+
 ## Non-goals
 
 - No automated/live execution, no broker integration.
 - No intraday; daily cadence only.
-- No new data sources; reuse the existing 14-asset cache.
 - No regime×sector conditioning in v1 (see Conditioning).
+
+## M1 empirical findings (2026-07-15, mechanical core complete)
+
+Running the 14-asset batch surfaced two predicted limitations — both are the
+diagnostics working, not bugs:
+- **Effective-N ≈ 1 on most directional calls:** after grid-FDR usually a single
+  set survives per asset, so the "council" is a soft pick-the-best. Confirms the
+  need to expand the roster to 5–6 genuinely decorrelated sets before claiming
+  ensemble benefit (Problem 3).
+- **Inter-set signal corr 0.4–0.76 (> 0.6 threshold on several assets):**
+  round-robin member assignment does not achieve decorrelation on real data. M2+
+  should replace round-robin with an explicit decorrelated-set *selection* step
+  (and prefer the error-correlation invariant over the signal one).
 
 ## Key decisions (from brainstorm)
 
