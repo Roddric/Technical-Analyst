@@ -1,0 +1,8 @@
+# Indicator Council runtime dependencies.
+# NOTE: the TA library is pandas-ta-openbb (a maintained fork), NOT vanilla pandas_ta.
+# It is imported in code as `import pandas_ta`.
+pandas>=2.2
+numpy>=1.26
+scipy>=1.11
+yfinance>=0.2
+pandas-ta-openbb>=0.4

@@ -11,12 +11,23 @@ import pandas as pd
 import config
 config.ensure_reuse_on_path()
 from pandasta_registry import build_candidates, compute_candidate
-from pandasta_set_search import causal_zscore
 import stats as st
 
 SLOTS = ("trend", "momentum", "volatility", "volume")
 PERSONALITIES = ("Fast", "Slow", "Contrarian")
 NULL_NAME = "Null"
+
+# Causal rolling z-score (inlined from the former pandasta_set_search reuse so
+# this package is self-contained). 252-bar window, 126-bar warm-up.
+_Z_WINDOW, _Z_MIN = 252, 126
+
+
+def causal_zscore(x: pd.Series) -> pd.Series:
+    mu = x.rolling(_Z_WINDOW, min_periods=_Z_MIN).mean()
+    sd = x.rolling(_Z_WINDOW, min_periods=_Z_MIN).std()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z = (x - mu) / sd
+    return z.replace([np.inf, -np.inf], np.nan)
 
 
 def _train_slice(n: int) -> int:

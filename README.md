@@ -3,6 +3,20 @@
 A technical-analysis toolkit. You (OpenClaw) are handed this folder and asked to
 "analyze `<TICKER>`". This file is your front door.
 
+## Setup (once)
+
+Self-contained — all reused data/indicator/stats code is vendored under
+`vendor/`, so this folder needs no sibling projects. Requires Python 3.11+ and:
+
+```bash
+pip install -r requirements.txt
+```
+
+The TA library is **`pandas-ta-openbb`** (imported as `pandas_ta`), not vanilla
+`pandas_ta`. The **first** analysis of a ticker fetches its history from Yahoo
+(needs internet) and caches it under `vendor/price_cache/`; every run after that
+is offline and identical (see Reproducibility).
+
 ## Analyze a stock — the one command
 
 ```bash

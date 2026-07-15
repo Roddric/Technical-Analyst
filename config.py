@@ -3,8 +3,8 @@ import importlib.metadata  # noqa: F401  preload so pandas_ta imports cleanly st
 import sys
 from pathlib import Path
 
-# Sibling project whose data/indicator/stats code we reuse.
-TA_FLAT_DIR = str(Path(__file__).resolve().parent.parent / "ta-flat-backtest")
+# Vendored data/indicator/stats modules (self-contained; no sibling dependency).
+TA_FLAT_DIR = str(Path(__file__).resolve().parent / "vendor")
 
 # Decision
 HORIZON = 5                # forward-return horizon (trading days)
