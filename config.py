@@ -1,4 +1,5 @@
 """Central config + reuse shim for the Indicator Council."""
+import importlib.metadata  # noqa: F401  preload so pandas_ta imports cleanly standalone
 import sys
 from pathlib import Path
 
