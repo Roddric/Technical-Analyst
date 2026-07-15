@@ -82,7 +82,7 @@ def _pairwise_report(cols: dict[str, pd.Series], threshold: float) -> dict:
     for a, b in combinations(names, 2):
         c = float(mat[a].corr(mat[b])) if len(mat) > 2 else 0.0
         c = 0.0 if not np.isfinite(c) else c
-        pairs[(a, b)] = c
+        pairs[f"{a}~{b}"] = c          # str key so the report is JSON-serializable
         max_abs = max(max_abs, abs(c))
     return {"max_abs_corr": max_abs, "pairs": pairs, "ok": max_abs <= threshold}
 

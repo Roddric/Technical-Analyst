@@ -18,6 +18,7 @@ class Plan:
     size: float
     veto: bool
     reason: str
+    effective_n: float = 0.0
     set_contributions: dict = field(default_factory=dict)
     decorrelation: dict = field(default_factory=dict)
 
@@ -39,6 +40,7 @@ def assemble_plan(asset: str, regime: "regime_mod.Regime",
         size=levels.size,
         veto=levels.veto,
         reason=levels.reason,
+        effective_n=decision.effective_n,
         set_contributions=dict(decision.contributions),
         decorrelation=dict(decorrelation),
     )
