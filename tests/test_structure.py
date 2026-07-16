@@ -78,3 +78,44 @@ def test_swing_low_flat_bottom_picks_rightmost():
     lows = [d for d, _, kind in piv if kind == "low"]
     assert len(lows) == 1
     assert lows[0] == df.index[4]
+
+
+def test_sr_clusters_repeated_touches_into_one_zone():
+    # two swing highs at ~150 (positions 6 and 18), lows near 100, current ~120
+    df = _zigzag([120, 100, 150, 100, 150, 100, 120], seg=6)
+    out = structure.support_resistance(df, cluster_atr=5.0)
+    assert out["available"] is not False
+    res = out["resistances"]
+    # the two 150 highs collapse into a single zone with touches >= 2
+    assert any(abs(z["price"] - 150) < 2 and z["touches"] >= 2 for z in res)
+
+
+def test_sr_distinct_prices_stay_separate():
+    df = _zigzag([120, 100, 150, 100, 180, 100, 120], seg=6)
+    out = structure.support_resistance(df, cluster_atr=0.1)
+    prices = sorted(z["price"] for z in out["resistances"])
+    assert any(abs(p - 150) < 2 for p in prices)
+    assert any(abs(p - 180) < 2 for p in prices)
+
+
+def test_sr_splits_by_current_price_and_caps_levels():
+    df = _zigzag([120, 90, 160, 95, 170, 100, 130], seg=6)
+    out = structure.support_resistance(df, cluster_atr=0.1, max_levels=1)
+    price = float(df["close"].iloc[-1])
+    assert len(out["supports"]) <= 1 and len(out["resistances"]) <= 1
+    assert all(z["price"] < price for z in out["supports"])
+    assert all(z["price"] > price for z in out["resistances"])
+
+
+def test_sr_atr_fallback_when_atr_nan(monkeypatch):
+    df = _zigzag([120, 100, 150, 100, 150, 100, 120], seg=6)
+    monkeypatch.setattr(structure, "_atr", lambda d: float("nan"))
+    out = structure.support_resistance(df)
+    assert "0.75%" in out["method"] or "ATR unavailable" in out["method"]
+
+
+def test_sr_unavailable_when_no_pivots():
+    df = _frame([100.0] * 300)          # perfectly flat -> no swings
+    out = structure.support_resistance(df)
+    assert out == {"available": False, "reason": out["reason"]}
+    assert out["available"] is False

@@ -56,3 +56,63 @@ def _swing_points(df: pd.DataFrame, k: int = SWING_K,
             out.append((idx[t], float(lo), "low"))
     out.sort(key=lambda p: p[0])
     return out
+
+
+def _cluster(pivots, tol):
+    """Single-linkage over price-sorted pivots: break a zone when the gap to the
+    next pivot price exceeds tol. Returns [(rep_price, touches, last_touch)]."""
+    if not pivots:
+        return []
+    ordered = sorted(pivots, key=lambda p: p[1])
+    zones = []
+    grp = [ordered[0]]
+    for piv in ordered[1:]:
+        if piv[1] - grp[-1][1] <= tol:
+            grp.append(piv)
+        else:
+            zones.append(grp)
+            grp = [piv]
+    zones.append(grp)
+    out = []
+    for grp in zones:
+        rep = float(np.mean([p[1] for p in grp]))
+        last_touch = max(p[0] for p in grp)
+        out.append((round(rep, 2), len(grp), str(last_touch.date())))
+    return out
+
+
+def support_resistance(df: pd.DataFrame, k: int = SWING_K, lookback: int = LOOKBACK,
+                       cluster_atr: float = CLUSTER_ATR,
+                       max_levels: int = SR_MAX_LEVELS) -> dict:
+    price = _last_close(df)
+    pivots = _swing_points(df, k=k, lookback=lookback)
+    if not pivots or not np.isfinite(price):
+        return {"available": False, "reason": "no swing pivots / insufficient history"}
+
+    win_len = min(lookback, len(df))
+    atr = _atr(df)
+    if np.isfinite(atr) and atr > 0:
+        tol = cluster_atr * atr
+        tol_desc = f"{cluster_atr}xATR"
+    else:
+        tol = FALLBACK_CLUSTER_PCT * price
+        tol_desc = "0.75% (ATR unavailable)"
+
+    def _level(zone):
+        rep, touches, last_touch = zone
+        return {"price": rep, "touches": touches, "last_touch": last_touch,
+                "dist_pct": round(100 * (rep - price) / price, 2)}
+
+    zones = _cluster(pivots, tol)
+    supports = sorted((z for z in zones if z[0] < price), key=lambda z: -z[0])
+    resistances = sorted((z for z in zones if z[0] >= price), key=lambda z: z[0])
+    sup = [_level(z) for z in supports[:max_levels]]
+    res = [_level(z) for z in resistances[:max_levels]]
+    return {
+        "available": True,
+        "method": f"swing pivots k={k} over {win_len} bars, clustered within {tol_desc}",
+        "supports": sup,
+        "resistances": res,
+        "nearest_support": sup[0]["price"] if sup else None,
+        "nearest_resistance": res[0]["price"] if res else None,
+    }
