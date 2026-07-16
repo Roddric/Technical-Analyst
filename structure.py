@@ -116,3 +116,65 @@ def support_resistance(df: pd.DataFrame, k: int = SWING_K, lookback: int = LOOKB
         "nearest_support": sup[0]["price"] if sup else None,
         "nearest_resistance": res[0]["price"] if res else None,
     }
+
+
+def _dominant_pair(pivots):
+    """Max-amplitude opposite-kind pivot pair (i<j). Tie-break toward the most
+    recent: larger j, then larger i. Returns (i, j) indices into `pivots` or None."""
+    best = None       # (amplitude, j, i)
+    best_ij = None
+    for i in range(len(pivots)):
+        for j in range(i + 1, len(pivots)):
+            if pivots[i][2] == pivots[j][2]:
+                continue
+            key = (abs(pivots[j][1] - pivots[i][1]), j, i)
+            if best is None or key > best:
+                best, best_ij = key, (i, j)
+    return best_ij
+
+
+def fibonacci_levels(df: pd.DataFrame, k: int = SWING_K,
+                     lookback: int = LOOKBACK) -> dict:
+    price = _last_close(df)
+    pivots = _swing_points(df, k=k, lookback=lookback)
+    highs = [p for p in pivots if p[2] == "high"]
+    lows = [p for p in pivots if p[2] == "low"]
+    if not highs or not lows or not np.isfinite(price):
+        return {"available": False,
+                "reason": "no confirmed swing (need both a swing high and a swing low)"}
+
+    i, j = _dominant_pair(pivots)
+    later = pivots[j]
+    direction = "up" if later[2] == "high" else "down"
+    hi = max(pivots[i], pivots[j], key=lambda p: p[1])
+    lo = min(pivots[i], pivots[j], key=lambda p: p[1])
+    high, low = hi[1], lo[1]
+    diff = high - low
+    win_len = min(lookback, len(df))
+
+    def _pos(lvl):
+        return "above" if lvl > price else "below"
+
+    retr, ext = [], []
+    for r in FIB_RETR:
+        lvl = high - r * diff if direction == "up" else low + r * diff
+        retr.append({"ratio": r, "price": round(lvl, 2), "pos": _pos(lvl)})
+    for e in FIB_EXT:
+        lvl = low + e * diff if direction == "up" else high - e * diff
+        ext.append({"ratio": e, "price": round(lvl, 2), "pos": _pos(lvl)})
+
+    all_lvls = retr + ext
+    nearest = min(all_lvls, key=lambda d: abs(d["price"] - price))
+    return {
+        "swing": {
+            "direction": direction,
+            "high": round(high, 2), "high_date": str(hi[0].date()),
+            "low": round(low, 2), "low_date": str(lo[0].date()),
+            "amplitude_pct": round(100 * diff / low, 2) if low else None,
+            "window_bars": int(win_len),
+        },
+        "retracements": retr,
+        "extensions": ext,
+        "nearest_level": {"ratio": nearest["ratio"], "price": nearest["price"],
+                          "dist_pct": round(100 * (nearest["price"] - price) / price, 2) if price else None},
+    }

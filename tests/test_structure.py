@@ -119,3 +119,43 @@ def test_sr_unavailable_when_no_pivots():
     out = structure.support_resistance(df)
     assert out == {"available": False, "reason": out["reason"]}
     assert out["available"] is False
+
+
+def test_fib_upswing_exact_math():
+    # low 100 @pos6, high 200 @pos12, current 150 @pos18 (last bar)
+    df = _zigzag([120, 100, 200, 150], seg=6)
+    out = structure.fibonacci_levels(df)
+    assert out["swing"]["direction"] == "up"
+    assert out["swing"]["high"] == 200.0
+    assert out["swing"]["low"] == 100.0
+    assert out["swing"]["amplitude_pct"] == 100.0
+    r = {lvl["ratio"]: lvl["price"] for lvl in out["retracements"]}
+    assert r[0.382] == 161.8
+    assert r[0.5] == 150.0
+    assert r[0.618] == 138.2
+    e = {lvl["ratio"]: lvl["price"] for lvl in out["extensions"]}
+    assert e[1.272] == 227.2
+    assert e[1.618] == 261.8
+    assert out["nearest_level"]["ratio"] == 0.5     # 150 == current price
+
+
+def test_fib_dominant_swing_beats_recency_and_is_stable():
+    # biggest leg is 100->200 (up); a smaller, more-recent 200->180 down leg exists
+    df = _zigzag([120, 100, 200, 180, 190], seg=6)
+    out = structure.fibonacci_levels(df)
+    assert out["swing"]["direction"] == "up"
+    # append one bar that does NOT create a larger leg -> direction must not flip
+    extra = df.iloc[[-1]].copy()
+    extra.index = [df.index[-1] + pd.tseries.offsets.BDay(1)]
+    extra.iloc[0, :] = 188.0
+    df2 = pd.concat([df, extra])
+    assert structure.fibonacci_levels(df2)["swing"]["direction"] == "up"
+
+
+def test_fib_no_confirmed_swing_returns_unavailable():
+    # single tent: one high pivot at apex, zero interior swing lows
+    df = _frame(list(range(1, 14)) + list(range(12, 0, -1)))   # up then down
+    out = structure.fibonacci_levels(df)
+    assert out["available"] is False
+    assert "swing" not in out
+    assert "both" in out["reason"] or "confirmed swing" in out["reason"]
