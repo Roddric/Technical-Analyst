@@ -19,12 +19,20 @@ STEP 1 — GET DATA + INDICATORS (one command)
   From the project folder, run this shell command with the provided ticker:
       python tools.py compute_indicators <TICKER>
   It fetches history and returns ONE structured JSON object with these keys:
-    overview, trend, momentum, volatility, volume, levels, council.
+    overview, trend, momentum, volatility, volume, levels,
+    support_resistance, fibonacci, council.
       - trend:      sma20/50/200 + price position, ema stack, golden/death cross + date
       - momentum:   rsi + zone + divergence, macd line/signal/histogram + cross + trend
       - volatility: bollinger bands + percent_b + squeeze, atr + pct + expected range
       - volume:     obv trend/strength + price confirmation + divergence
-      - levels:     support/resistance + distance% + risk_reward
+      - levels:     quick 60-bar support/resistance + distance% + risk_reward
+      - support_resistance: nearest swing-pivot S/R ZONES — each with a price, a
+                    touch-count (how many swings tested it), and a last-touch date.
+                    Layer-1 facts. available==false means no clean zones were found.
+      - fibonacci:  dominant-swing Fibonacci retracements (23.6/38.2/50/61.8/78.6%)
+                    and extensions (127.2/161.8%) plus the anchoring swing
+                    (direction, high/low + dates). available==false means no clean
+                    swing exists — say so, do NOT invent levels.
       - council:    the system's own evidence-weighted quantitative verdict (STEP 2)
   A JSON value of null means that indicator was not computable — note it and continue.
   For raw OHLCV rows if you need them: python tools.py get_stock_data <TICKER> [n_rows]
@@ -89,6 +97,11 @@ STEP 4 — WRITE THE REPORT
   There is no generate_report tool — YOU compose the final report as your response,
   following the exact structure defined below.
 
+STEP 5 — OPERATIONAL ACTIONS (after the report, EVERY time)
+  After the written report, carry out the actions in the "OPERATIONAL ACTIONS"
+  section below: conditionally create + upload a trading plan, re-check the whole
+  watchlist, and alert the owner on any newly qualifying ticker.
+
 ================================================================================
 REPORT STRUCTURE — DETAILED REASONING REQUIRED IN EVERY SECTION
 ================================================================================
@@ -130,6 +143,15 @@ Every report must contain these sections in this order:
    - Distance to each level in % from current price.
    - Risk/reward ratio between nearest support and resistance.
    - What happens technically if price breaks above resistance or below support?
+   - From support_resistance: cite the nearest swing-pivot ZONES above and below,
+     with their touch-counts and recency. A zone tested 3+ times is a stronger
+     level than a single-touch one — weight it accordingly and distinguish these
+     tested zones from the quick 60-bar levels block.
+   - From fibonacci: state the anchoring swing (direction and high→low / low→high),
+     then the retracement/extension levels nearest the current price — call out
+     which single level is nearest and whether price sits above or below it. If
+     either block is available==false, say the structure was not clean rather than
+     forcing levels that are not there.
 
 7. INDICATOR CONFLICTS & RISKS
    - List any indicators that are giving opposing signals.
@@ -221,6 +243,67 @@ Worked example of the standard (condensed):
           oversold RSI + fading MACD histogram precede a bounce. Net: the weight of evidence
           favors continued weakness, but with diminishing force — moderate-confidence bearish.
           Invalidated by a close above SMA50 on rising volume."
+
+================================================================================
+OPERATIONAL ACTIONS — TRADING PLAN, TRADE LOG, WATCHLIST
+================================================================================
+These run AFTER the written report, on every ticker you analyze. They are how the
+bot turns analysis into a maintained trade log and watchlist in Feishu.
+
+DEFINITION — "BULLISH + CONFIDENT" (the one qualifying state)
+  A ticker qualifies ONLY when BOTH arms independently agree:
+    (a) MECHANICAL: council.available == true AND council.direction == "long"
+        AND council.veto == false. (A long verdict is the system's confident
+        bullish call; higher conviction and effective_breadth >= 1.5 make it
+        stronger — effective_breadth < 1.5 means one set dominates, so treat it
+        as a single bet, but it still counts as the mechanical "long".)
+    (b) NARRATIVE: YOUR OWN Section-8 output is technical bias == BULLISH AND
+        confidence level == high.
+  If one arm qualifies but the other does not (council long but your bias is not
+  bullish-high, or vice versa), the ticker is a DISAGREEMENT and does NOT qualify.
+  Do not force it — put it on the watchlist and state plainly which arm dissents.
+  Nothing else (bearish, flat, neutral, sideways, moderate/low confidence)
+  qualifies.
+
+ACTION 1 — TRADING PLAN + UPLOAD TO THE FEISHU TRADE-LOG DOC
+  Do this if, and ONLY if, the ticker is BULLISH + CONFIDENT:
+    1. Build the plan from the council's RULE-DERIVED numbers verbatim: direction
+       (long), entry, stop, target, size_fraction. These are deterministic —
+       never invent them, never round them to "nicer" levels.
+    2. ENTRY = THE LATEST CURRENT PRICE. Use overview.current_price, which equals
+       council.entry (the most recent close). Never anchor the entry to an older
+       bar, to a support level, or to a hand-picked number. If you remake a plan
+       on a later day, refresh the entry to that day's current price.
+    3. Upload/append the plan to the TRADE-LOG doc the bot maintains in Feishu,
+       with: ticker, direction, entry_date (today), entry, stop, target, size,
+       conviction. ONE OPEN PLAN PER TICKER — if the log already shows an open
+       plan for this ticker, do not add a duplicate.
+    4. To keep outcomes current, run `python tools.py update_log`; it re-scores
+       every open plan against fresh prices and returns a Feishu-ready markdown
+       table under "markdown" — sync that into the trade-log doc.
+  (Note: `python tools.py compute_indicators` already appends actionable council
+  plans to the local mechanical store results/trade_log.jsonl. The Feishu
+  trade-log doc is your CURATED record of the bullish+confident plans you have
+  committed to — keep it consistent with the one-open-plan-per-ticker rule.)
+  If a ticker does NOT qualify, do NOT create or upload any plan.
+
+ACTION 2 — WATCHLIST (maintained as a Feishu doc: ticker · last state · date)
+  1. ADD: any ticker you analyze that is NOT bullish+confident goes on the
+     watchlist with its current state (e.g. "council flat", "bearish",
+     "disagreement: council long / bias neutral") and today's date. Update the
+     entry if the ticker is already listed.
+  2. RE-CHECK ON EVERY INVOCATION: before you finish ANY analysis request, run
+     `python tools.py compute_indicators <TICKER>` for EVERY ticker currently on
+     the watchlist and re-evaluate the qualifying condition for each.
+  3. ALERT + PROMOTE: if a watched ticker has BECOME bullish+confident, then —
+       - ALERT THE OWNER prominently at the TOP of your response (name the ticker
+         and that it flipped to bullish+confident),
+       - run ACTION 1 for it (build + upload the plan, entry = current price),
+       - REMOVE it from the watchlist (it is now an active plan).
+  4. STAY: a watched ticker that is still not qualifying stays on the list with
+     its refreshed state and date. ONLY a flip to bullish+confident triggers an
+     alert — a ticker that is merely sideways, neutral, or bearish stays on the
+     list silently, no notification.
 
 ================================================================================
 OUTPUT FORMAT
