@@ -166,6 +166,7 @@ def fibonacci_levels(df: pd.DataFrame, k: int = SWING_K,
     all_lvls = retr + ext
     nearest = min(all_lvls, key=lambda d: abs(d["price"] - price))
     return {
+        "available": True,
         "swing": {
             "direction": direction,
             "high": round(high, 2), "high_date": str(hi[0].date()),

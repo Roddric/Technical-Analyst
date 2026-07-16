@@ -139,6 +139,22 @@ def test_fib_upswing_exact_math():
     assert out["nearest_level"]["ratio"] == 0.5     # 150 == current price
 
 
+def test_fib_downswing_exact_math():
+    # high 200 @pos6, low 100 @pos12, current 150 @pos18 (dominant high->low leg)
+    df = _zigzag([180, 200, 100, 150], seg=6)
+    out = structure.fibonacci_levels(df)
+    assert out["swing"]["direction"] == "down"
+    assert out["swing"]["high"] == 200.0
+    assert out["swing"]["low"] == 100.0
+    r = {lvl["ratio"]: lvl["price"] for lvl in out["retracements"]}
+    assert r[0.382] == 138.2
+    assert r[0.5] == 150.0
+    assert r[0.618] == 161.8
+    e = {lvl["ratio"]: lvl["price"] for lvl in out["extensions"]}
+    assert e[1.272] == 72.8
+    assert e[1.618] == 38.2
+
+
 def test_fib_dominant_swing_beats_recency_and_is_stable():
     # biggest leg is 100->200 (up); a smaller, more-recent 200->180 down leg exists
     df = _zigzag([120, 100, 200, 180, 190], seg=6)
