@@ -47,9 +47,18 @@ through, and `_clean` already strips non-finite floats.
 
 `_swing_points(df, k=3, lookback=250)`:
 
-- Restrict to the last `lookback` bars.
-- A bar is a **swing high** if its `high` is the strict/≥ max within the window
-  of ±`k` bars; a **swing low** if its `low` is the min within ±`k` bars.
+- Restrict to the last `min(lookback, len(df))` bars. Callers report the
+  **actual** window length, never the requested default (see "Window honesty").
+- **Swing-high rule (tie-break pinned):** bar `t` is a swing high iff
+  `high[t] > max(high[t-k .. t-1])` **and** `high[t] >= max(high[t+1 .. t+k])`
+  — i.e. **left-strict, right-loose**. A swing low is the mirror:
+  `low[t] < min(low[t-k .. t-1])` and `low[t] <= min(low[t+1 .. t+k])`.
+  - *Why the asymmetry:* on a flat top (two+ adjacent bars at the same high),
+    left-strict/right-loose makes exactly the **leftmost** bar of the plateau
+    qualify — not zero (which a strict-both rule gives) and not two (which an
+    `>=`-both rule gives). Equal highs are common on FX/index prints, so the rule
+    must be defined, not left to comparison order. The mirror rule gives the
+    leftmost bar of a flat bottom.
 - `k=3` gives a 7-bar fractal. Edge bars (first/last `k`) cannot be pivots.
 - Returns a list of `(date: Timestamp, price: float, kind: "high"|"low")`,
   chronologically ordered.
@@ -69,6 +78,14 @@ both mandatory:
   `t` is absent from `_swing_points(df[:t+k])` and present in
   `_swing_points(df[:t+k+1])`. If detection ever reaches beyond `t+k`, or emits a
   trailing-window bar as a pivot, that test fails.
+
+### Window honesty
+
+`lookback` is a **cap**, not an assumption: the actual window is
+`min(lookback, len(df))`. Both public functions report the **actual** bar count
+in their `method` string (and Fib's `swing`), never the requested `250`. A
+210-bar asset must read "over 210 bars", not "over 250 bars" — the output must
+not overstate the evidence window it was computed on.
 
 ## Component 2 — support/resistance
 
@@ -90,7 +107,7 @@ Output:
 
 ```json
 "support_resistance": {
-  "method": "swing pivots k=3 over 250 bars, clustered within 0.5xATR",
+  "method": "swing pivots k=3 over 250 bars, clustered within 0.5xATR",   // "250" is the ACTUAL window used, not the default
   "supports":    [{"price": 0.0, "touches": 3, "last_touch": "2026-05-12", "dist_pct": -2.1}],
   "resistances": [{"price": 0.0, "touches": 2, "last_touch": "2026-06-30", "dist_pct": 3.4}],
   "nearest_support": 0.0,
@@ -118,9 +135,14 @@ Unavailable case (too few pivots / short history):
      bullish, the next bearish on essentially the same chart. Dominant-move keys
      off the largest excursion, so a marginal new pivot can't silently flip the
      grid; only a genuinely larger leg does.
-   - *Sparse-pivot fallback:* if fewer than one high **and** one low pivot exist,
-     use the raw window high and low as the two anchors, direction from their
-     temporal order. This is the degenerate single-leg case; note it in `swing`.
+   - *No sparse-pivot fallback.* If there is not **at least one high pivot and one
+     low pivot**, there is no confirmed swing to anchor on, and we return
+     `{"available": false, "reason": "no confirmed swing (need both a swing high
+     and a swing low)"}`. We deliberately do **not** fall back to raw window
+     high/low with a recency-guessed direction: that would re-admit, in the
+     weakest layer's weakest state, the exact recency flip-flop the dominant-move
+     path exists to eliminate. "No reliable swing exists" is a true, useful thing
+     to tell OpenClaw, and `available: false` says it structurally.
 2. **Direction & anchors:** direction is **up-swing** (low→high) if the later
    pivot `j` is the high, **down-swing** (high→low) if `j` is the low.
    `high = max(price_i, price_j)`, `low = min(...)`, with dates attached
@@ -164,8 +186,11 @@ Unavailable case: `{"available": false, "reason": "..."}`.
   **present** in `_swing_points(df[:t+k+1])`; assert the trailing `k` bars are
   never returned as pivots. This is the test that catches look-ahead in the
   detection loop — if it passes, the rest is tuning.
-- **Swing detection:** synthetic series with hand-placed peaks/troughs →
-  assert exact pivot dates/prices; assert edge bars excluded.
+- **Swing detection + flat-top tie rule:** synthetic series with hand-placed
+  peaks/troughs → assert exact pivot dates/prices; assert edge bars excluded.
+  Include a deliberate **flat-top fixture** (two+ adjacent bars at the same high)
+  and a flat-bottom fixture → assert exactly **one** pivot per plateau, at the
+  **leftmost** bar (proves left-strict/right-loose, not zero and not two).
 - **S/R clustering:** repeated touches at a known price → one zone with correct
   `touches` and `last_touch`; distinct prices → separate zones; correct
   above/below split and `max_levels` cap; ATR-relative tolerance widens/narrows
@@ -177,6 +202,11 @@ Unavailable case: `{"available": false, "reason": "..."}`.
   down-pivot exists (proves dominant-move beats recency-of-anchor); appending one
   bar that does not create a larger leg must **not** flip `direction`
   (anti-flip-flop regression).
+- **Fib no-confirmed-swing:** a series with swing highs but **no** swing low (or
+  vice versa) → `available: false` with the "need both" reason; assert we do
+  **not** emit a grid off raw window high/low (proves the fallback is gone).
+- **Window honesty:** a 210-bar series → `method` (and Fib `swing`) report the
+  actual bar count used, not `250`.
 - **Safety:** short (<lookback) and flat (no pivots) series → `available: false`,
   no exceptions, no non-finite floats.
 
