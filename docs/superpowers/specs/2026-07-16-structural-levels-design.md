@@ -1,7 +1,7 @@
 # Structural Levels: Support/Resistance + Fibonacci
 
 **Date:** 2026-07-16
-**Status:** Approved design, pending implementation plan
+**Status:** Approved — writing implementation plan
 
 ## Goal
 
@@ -50,15 +50,19 @@ through, and `_clean` already strips non-finite floats.
 - Restrict to the last `min(lookback, len(df))` bars. Callers report the
   **actual** window length, never the requested default (see "Window honesty").
 - **Swing-high rule (tie-break pinned):** bar `t` is a swing high iff
-  `high[t] > max(high[t-k .. t-1])` **and** `high[t] >= max(high[t+1 .. t+k])`
-  — i.e. **left-strict, right-loose**. A swing low is the mirror:
-  `low[t] < min(low[t-k .. t-1])` and `low[t] <= min(low[t+1 .. t+k])`.
+  `high[t] >= max(high[t-k .. t-1])` **and** `high[t] > max(high[t+1 .. t+k])`
+  — i.e. **left-loose, right-strict**. A swing low is the mirror:
+  `low[t] <= min(low[t-k .. t-1])` and `low[t] < min(low[t+1 .. t+k])`.
   - *Why the asymmetry:* on a flat top (two+ adjacent bars at the same high),
-    left-strict/right-loose makes exactly the **leftmost** bar of the plateau
+    left-loose/right-strict makes exactly the **rightmost** bar of the plateau
     qualify — not zero (which a strict-both rule gives) and not two (which an
     `>=`-both rule gives). Equal highs are common on FX/index prints, so the rule
-    must be defined, not left to comparison order. The mirror rule gives the
-    leftmost bar of a flat bottom.
+    must be defined, not left to comparison order.
+  - *Why rightmost, not leftmost:* the pivot date feeds `last_touch`, a **recency**
+    signal — "when did price last test this level". On a plateau, price was still
+    at that high on the plateau's **final** bar, so the rightmost bar is the honest
+    answer; leftmost would understate recency by the plateau's width. The mirror
+    rule puts the flat-bottom pivot on its last bar for the same reason.
 - `k=3` gives a 7-bar fractal. Edge bars (first/last `k`) cannot be pivots.
 - Returns a list of `(date: Timestamp, price: float, kind: "high"|"low")`,
   chronologically ordered.
@@ -190,7 +194,8 @@ Unavailable case: `{"available": false, "reason": "..."}`.
   peaks/troughs → assert exact pivot dates/prices; assert edge bars excluded.
   Include a deliberate **flat-top fixture** (two+ adjacent bars at the same high)
   and a flat-bottom fixture → assert exactly **one** pivot per plateau, at the
-  **leftmost** bar (proves left-strict/right-loose, not zero and not two).
+  **rightmost** bar (proves left-loose/right-strict, not zero and not two, and
+  that `last_touch` reflects the plateau's end).
 - **S/R clustering:** repeated touches at a known price → one zone with correct
   `touches` and `last_touch`; distinct prices → separate zones; correct
   above/below split and `max_levels` cap; ATR-relative tolerance widens/narrows
