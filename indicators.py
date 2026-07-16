@@ -15,6 +15,8 @@ config.ensure_reuse_on_path()
 import pandas_ta  # noqa: F401
 from pandasta_data import load_asset
 
+import structure
+
 PERIOD_BARS = 126          # ~6 months of trading days for period-window stats
 
 
@@ -195,4 +197,6 @@ def compute_indicators(df: pd.DataFrame) -> dict:
         "volatility": _volatility(df),
         "volume": _volume(df),
         "levels": _levels(df),
+        "support_resistance": structure.support_resistance(df),
+        "fibonacci": structure.fibonacci_levels(df),
     }

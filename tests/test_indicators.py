@@ -18,7 +18,7 @@ def _trend_df(n=400, step=0.004, noise=0.001, seed=1):
 
 def test_structure_has_all_sections():
     out = indicators.compute_indicators(_trend_df())
-    assert set(out) == {"overview", "trend", "momentum", "volatility", "volume", "levels"}
+    assert set(out) == {"overview", "trend", "momentum", "volatility", "volume", "levels", "support_resistance", "fibonacci"}
     assert set(out["momentum"]) >= {"rsi", "rsi_zone", "rsi_divergence", "macd",
                                     "macd_signal", "macd_hist", "macd_cross", "macd_hist_trend"}
 

@@ -159,3 +159,35 @@ def test_fib_no_confirmed_swing_returns_unavailable():
     assert out["available"] is False
     assert "swing" not in out
     assert "both" in out["reason"] or "confirmed swing" in out["reason"]
+
+
+def test_window_honesty_reports_actual_bars(synth_ohlcv):
+    df = synth_ohlcv(n=210)
+    sr = structure.support_resistance(df)
+    fib = structure.fibonacci_levels(df)
+    assert "210 bars" in sr["method"]
+    assert fib["swing"]["window_bars"] == 210
+
+
+def test_safety_no_exceptions_and_json_clean(synth_ohlcv):
+    # A short random series MAY legitimately have pivots -> "available"; the
+    # invariant is only that we never throw and never leak a non-finite float.
+    # A flat series has no swings -> must be unavailable.
+    tiny = synth_ohlcv(n=8)
+    flat = _frame([100.0] * 300)
+    for fn in (structure.support_resistance, structure.fibonacci_levels):
+        for df in (tiny, flat):
+            out = fn(df)
+            assert json.dumps(out, allow_nan=False)     # nothing non-finite leaked
+        assert fn(flat)["available"] is False           # flat -> no confirmed swing
+
+
+def test_compute_indicators_includes_structural_keys_and_is_json_clean(synth_ohlcv):
+    import indicators as ind
+    import tools
+    df = synth_ohlcv(n=800)
+    out = ind.compute_indicators(df)
+    assert "support_resistance" in out
+    assert "fibonacci" in out
+    # tools._clean output must be strict-JSON serializable (no NaN/inf)
+    json.dumps(tools._clean(out), allow_nan=False)
