@@ -101,7 +101,7 @@ def support_resistance(df: pd.DataFrame, k: int = SWING_K, lookback: int = LOOKB
     def _level(zone):
         rep, touches, last_touch = zone
         return {"price": rep, "touches": touches, "last_touch": last_touch,
-                "dist_pct": round(100 * (rep - price) / price, 2)}
+                "dist_pct": round(100 * (rep - price) / price, 2) if price else None}
 
     zones = _cluster(pivots, tol)
     supports = sorted((z for z in zones if z[0] < price), key=lambda z: -z[0])
