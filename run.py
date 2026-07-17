@@ -15,6 +15,7 @@ import arbiter as arbiter_mod
 import risk as risk_mod
 import plan as plan_mod
 import report as report_mod
+import cross_market as cross_market_mod
 
 RESULTS = Path(__file__).resolve().parent / "results"
 
@@ -41,6 +42,7 @@ def analyze_asset(df, asset: str, mode: str = "log", allowed=None,
                   roster_key: str | None = None) -> plan_mod.Plan:
     reg = regime_mod.classify_regime(df)          # context only; never feeds the arbiter
     signals = selection_mod.build_selected_sets(df, mode, roster_key=roster_key)
+    signals.update(cross_market_mod.build_signals(df, asset))
     weights = evidence_mod.compute_weights(signals, df, mode, allowed=allowed)
     latest = {n: (float(s.iloc[-1]) if s.notna().iloc[-1] else 0.0)
               for n, s in signals.items()}

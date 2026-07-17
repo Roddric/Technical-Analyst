@@ -143,3 +143,18 @@ def test_build_signals_short_history_is_empty():
     target, adr, fx = _long_legs(n=50)          # < XMKT_MIN_HISTORY
     loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
     assert cross_market.build_signals(target, "000660.KS", loader=loader) == {}
+
+
+def test_run_analyze_asset_appends_cross_market_signals(monkeypatch, synth_ohlcv):
+    import run
+    df = synth_ohlcv(n=300, seed=3)
+    seen = {}
+
+    def fake_build(target_df, asset, loader=None):
+        seen["asset"] = asset
+        seen["is_df"] = target_df is df
+        return {}                       # empty -> no behavior change, just verify wiring
+
+    monkeypatch.setattr(run.cross_market_mod, "build_signals", fake_build)
+    run.analyze_asset(df, "000660.KS")
+    assert seen["asset"] == "000660.KS" and seen["is_df"] is True
