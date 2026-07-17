@@ -59,25 +59,16 @@ def test_causal_zscore_flat_series_is_nan_not_inf():
     assert z.iloc[-1] != z.iloc[-1] or np.isnan(z.iloc[-1])   # NaN, not inf
 
 
-def test_adr_overnight_uses_prior_foreign_return_and_is_causal():
-    # ADR closes; its daily returns are aligned to the PRIOR foreign date for each target
-    adr = _frame(["2021-01-01", "2021-01-02", "2021-01-03", "2021-01-04"],
-                 [100, 110, 121, 121])                 # returns: nan, +0.10, +0.10, 0.0
+def test_adr_overnight_signal_values_are_causal():
+    # ADR returns: [nan, +0.10, +0.10, 0.0]. Strict-before alignment to targets
+    # 01-03/01-04/01-05 -> [0.10, 0.10, 0.0]; causal z(window=2) -> [nan, nan, -0.7071].
+    # A leaky (same-date) alignment would give [0.10, 0.0, 0.0] -> z [nan, -0.7071, nan],
+    # so asserting the finite value lands at index 2 (not index 1) pins the causal guard
+    # to the FUNCTION's own output.
+    adr = _frame(["2021-01-01", "2021-01-02", "2021-01-03", "2021-01-04"], [100, 110, 121, 121])
     target = _frame(["2021-01-03", "2021-01-04", "2021-01-05"], [1, 1, 1])
     sig = cross_market.adr_overnight_signal(target, adr, window=2)
     assert sig.name == "xmkt_adr_overnight"
     assert list(sig.index) == list(target.index)
-    # target 2021-01-03 sees ADR return as-of < 01-03 -> the 01-02 return (+0.10)
-    raw = cross_market._asof_align(target.index, adr["close"].pct_change().to_frame("r"),
-                                   strict_before=True)["r"]
-    assert raw.iloc[0] == pytest.approx(0.10)
-
-
-def test_adr_overnight_never_leaks_same_or_future_day():
-    adr = _frame(["2021-01-01", "2021-01-02", "2021-01-03"], [100, 200, 400])
-    target = _frame(["2021-01-02"], [1])
-    raw = cross_market._asof_align(target.index, adr["close"].pct_change().to_frame("r"),
-                                   strict_before=True)["r"]
-    # at target 01-02, the only usable ADR return is 01-01's (which is NaN, first bar) -
-    # crucially NOT the 01-02 (+1.0) or 01-03 (+1.0) returns
-    assert raw.iloc[0] != pytest.approx(1.0)
+    assert np.isnan(sig.iloc[0]) and np.isnan(sig.iloc[1])
+    assert sig.iloc[2] == pytest.approx((0.0 - 0.05) / np.std([0.10, 0.0], ddof=1))
