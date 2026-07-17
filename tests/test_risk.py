@@ -21,3 +21,11 @@ def test_short_levels_are_ordered(synth_ohlcv):
     df = synth_ohlcv(seed=11)
     lv = risk.build_levels(df, arbiter.Decision(-1, 0.6, {}, 0.0))
     assert lv.target < lv.entry < lv.stop
+
+
+def test_suppressed_short_veto_reason(synth_ohlcv):
+    df = synth_ohlcv(seed=15)
+    d = arbiter.Decision(0, 0.0, {}, 0.0, long_only_suppressed=True)
+    lv = risk.build_levels(df, d)
+    assert lv.veto and lv.size == 0.0
+    assert "long-only" in lv.reason

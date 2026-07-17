@@ -8,6 +8,7 @@ TA_FLAT_DIR = str(Path(__file__).resolve().parent / "vendor")
 
 # Decision
 HORIZON = 5                # forward-return horizon (trading days)
+LONG_ONLY = True           # policy: suppress short signals to flat (no short positions)
 
 # Sets / decorrelation
 N_PERSONALITIES = 3        # legacy round-robin roster size (superseded by selection)

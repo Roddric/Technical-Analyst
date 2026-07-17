@@ -40,3 +40,26 @@ def test_run_universe_smoke():
     plans = run.run_universe(assets=["BTC-USD"])   # uses real cached data
     assert len(plans) == 1
     assert plans[0].asset == "BTC-USD"
+
+
+def test_analyze_asset_passes_long_only(synth_ohlcv, monkeypatch):
+    # run must forward the config LONG_ONLY policy into the arbiter.
+    import config
+    import arbiter as arbiter_mod
+    df = synth_ohlcv(seed=16, drift=0.002)
+    seen = {}
+    orig = arbiter_mod.arbitrate
+
+    def spy(latest, weights, long_only=False):
+        seen["long_only"] = long_only
+        return orig(latest, weights, long_only=long_only)
+
+    monkeypatch.setattr(run.arbiter_mod, "arbitrate", spy)
+    run.analyze_asset(df, "TEST")
+    assert seen["long_only"] == config.LONG_ONLY
+
+
+def test_plans_are_never_short_under_long_only():
+    # With LONG_ONLY on (default), no plan may carry a short direction.
+    plans = run.run_universe(assets=["BTC-USD"])
+    assert all(p.direction in (0, 1) for p in plans)

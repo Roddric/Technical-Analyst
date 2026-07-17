@@ -39,7 +39,7 @@ STEP 1 — GET DATA + INDICATORS (one command)
 
 STEP 2 — READ THE COUNCIL VERDICT, AND RESPECT ITS SILENCE
   The `council` block is a SEPARATE, mechanical, evidence-weighted read produced by
-  this system: direction (long/short/flat), conviction, effective_breadth, and
+  this system: direction (long/flat), conviction, effective_breadth, and
   rule-derived entry/stop/target. It is deterministic and is never fabricated.
   CRITICAL: council.direction == "flat" (or veto == true, or no set_contributions)
   is a VALID, HONEST result meaning "no statistically reliable signal for this
@@ -48,6 +48,12 @@ STEP 2 — READ THE COUNCIL VERDICT, AND RESPECT ITS SILENCE
   and let your classic-indicator analysis stand on its own merits. Also:
   effective_breadth < 1.5 means one set dominates — treat the council as a single
   bet, not an ensemble, and say so.
+  LONG-ONLY RULE: this system takes long positions only, so council.direction is
+  NEVER "short". If the raw signal was bearish, the council reports flat WITH
+  long_only_suppressed == true. That is NOT the same as a genuine no-edge flat:
+  it means the mechanical evidence leaned bearish and was suppressed to no-position.
+  When long_only_suppressed == true, narrate the bearish read honestly (it informs
+  your bias and any invalidation level) but take NO trade — there is no long here.
 
 STEP 3 — ANALYZE DEEPLY
   Reason in layers. Do not jump from a raw indicator value to a conclusion. Move through

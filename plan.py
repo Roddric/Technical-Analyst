@@ -21,6 +21,7 @@ class Plan:
     effective_n: float = 0.0
     set_contributions: dict = field(default_factory=dict)
     decorrelation: dict = field(default_factory=dict)
+    long_only_suppressed: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -43,4 +44,5 @@ def assemble_plan(asset: str, regime: "regime_mod.Regime",
         effective_n=decision.effective_n,
         set_contributions=dict(decision.contributions),
         decorrelation=dict(decorrelation),
+        long_only_suppressed=decision.long_only_suppressed,
     )

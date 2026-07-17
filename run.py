@@ -44,7 +44,7 @@ def analyze_asset(df, asset: str, mode: str = "log", allowed=None,
     weights = evidence_mod.compute_weights(signals, df, mode, allowed=allowed)
     latest = {n: (float(s.iloc[-1]) if s.notna().iloc[-1] else 0.0)
               for n, s in signals.items()}
-    decision = arbiter_mod.arbitrate(latest, weights)
+    decision = arbiter_mod.arbitrate(latest, weights, long_only=config.LONG_ONLY)
     levels = risk_mod.build_levels(df, decision)
     decorr = sets_mod.check_decorrelation(signals, config.DECORR_THRESHOLD)
     return plan_mod.assemble_plan(asset, reg, decision, levels, decorr)

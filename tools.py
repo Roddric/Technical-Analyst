@@ -44,13 +44,17 @@ def council_verdict(ticker: str) -> dict:
         "effective_breadth": round(p.effective_n, 2),
         "max_inter_set_corr": round(p.decorrelation.get("max_abs_corr", 0.0), 2),
         "veto": p.veto,
+        "long_only_suppressed": p.long_only_suppressed,
         "entry": round(p.entry, 4), "stop": round(p.stop, 4),
         "target": round(p.target, 4), "size_fraction": round(p.size, 5),
         "set_contributions": {k: round(v, 4) for k, v in p.set_contributions.items()},
         "note": "direction/conviction are a deterministic function of out-of-sample "
                 "IC; every number is rule-derived. eff_breadth<1.5 => one set dominates. "
                 "eff_breadth is in-sample-optimistic (sets decorrelate less OOS), so it "
-                "is an upper bound — weight the evidence, not the count.",
+                "is an upper bound — weight the evidence, not the count. System is "
+                "LONG-ONLY: direction is never 'short'. long_only_suppressed=true means "
+                "the raw signal was bearish and was forced flat (no position) — read it "
+                "as a bearish signal, NOT as 'no edge'.",
     }
 
 
