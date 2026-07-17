@@ -158,3 +158,24 @@ def test_run_analyze_asset_appends_cross_market_signals(monkeypatch, synth_ohlcv
     monkeypatch.setattr(run.cross_market_mod, "build_signals", fake_build)
     run.analyze_asset(df, "000660.KS")
     assert seen["asset"] == "000660.KS" and seen["is_df"] is True
+
+
+def test_compute_indicators_adds_cross_market_snapshot(monkeypatch):
+    import json
+    import tools
+    import cross_market as cm
+
+    target, adr, fx = _long_legs()
+    # make the descriptive fetch return our synthetic legs, and the local df
+    monkeypatch.setattr(tools.ind, "get_stock_data",
+                        lambda t, *a, **k: {"US.SKHY": adr, "KRW=X": fx,
+                                            "000660.KS": target}.get(t))
+    # keep the indicator suite itself from doing heavy work: stub compute_indicators core
+    monkeypatch.setattr(tools.ind, "compute_indicators", lambda df: {"overview": {}})
+    monkeypatch.setattr(tools, "council_verdict", lambda t: {"available": False})
+    monkeypatch.setattr(tools.tradelog, "record_plan", lambda *a, **k: False)
+
+    out = tools.compute_indicators("000660.KS")
+    assert "cross_market" in out
+    assert out["cross_market"]["available"] is True
+    json.dumps(tools._clean(out), allow_nan=False)          # strict-JSON clean
