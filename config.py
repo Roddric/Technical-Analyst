@@ -13,9 +13,18 @@ LONG_ONLY = True           # policy: suppress short signals to flat (no short po
 # Cross-market linkage (Phase A: SK Hynix ADR)
 XMKT_Z_WINDOW = 60          # trailing window for causal z-scores
 XMKT_MIN_HISTORY = 150      # aligned finite bars required before a signal is emitted
-CROSS_MARKET_MAP = {        # target ticker -> foreign legs
-    "000660.KS": {"adr": "US.SKHY", "fx": "KRW=X", "adr_ratio": 1.0},
+# adr_ratio = ADRs per local share (10 SKHY ADRs = 1 000660.KS share, SEC
+# prospectus). Formula: premium = adr_usd * fx * adr_ratio / local - 1 (scales the
+# ADR up to a full-share basis). NOTE: this is 10, NOT 0.1 — the ratio multiplies
+# the ADR side; "1 ADR = 1/10 share" encodes here as 10 ADRs-per-share.
+CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
+    "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0},
 }
+# Two-way ADR<->local conversion opens 2026-07-29. BEFORE it, the premium is a
+# ONE-WAY scarcity premium with no arbitrage force to parity, so
+# xmkt_adr_premium's mean-reversion premise does NOT hold yet. Do not pool
+# pre/post history in one window for IC testing — split on this date.
+ADR_TWO_WAY_CONVERSION_DATE = "2026-07-29"
 
 # Sets / decorrelation
 N_PERSONALITIES = 3        # legacy round-robin roster size (superseded by selection)

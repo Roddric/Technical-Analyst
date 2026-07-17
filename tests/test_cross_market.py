@@ -123,7 +123,7 @@ def _long_legs(n=300):
 
 def test_build_signals_returns_both_with_fake_loader():
     target, adr, fx = _long_legs()
-    loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
+    loader = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
     sigs = cross_market.build_signals(target, "000660.KS", loader=loader)
     assert set(sigs) == {"xmkt_adr_overnight", "xmkt_adr_premium"}
     assert all(len(s) == len(target) for s in sigs.values())
@@ -141,7 +141,7 @@ def test_build_signals_missing_leg_is_empty():
 
 def test_build_signals_short_history_is_empty():
     target, adr, fx = _long_legs(n=50)          # < XMKT_MIN_HISTORY
-    loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
+    loader = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
     assert cross_market.build_signals(target, "000660.KS", loader=loader) == {}
 
 
@@ -168,7 +168,7 @@ def test_compute_indicators_adds_cross_market_snapshot(monkeypatch):
     target, adr, fx = _long_legs()
     # make the descriptive fetch return our synthetic legs, and the local df
     monkeypatch.setattr(tools.ind, "get_stock_data",
-                        lambda t, *a, **k: {"US.SKHY": adr, "KRW=X": fx,
+                        lambda t, *a, **k: {"SKHY": adr, "KRW=X": fx,
                                             "000660.KS": target}.get(t))
     # keep the indicator suite itself from doing heavy work: stub compute_indicators core
     monkeypatch.setattr(tools.ind, "compute_indicators", lambda df: {"overview": {}})
@@ -179,3 +179,23 @@ def test_compute_indicators_adds_cross_market_snapshot(monkeypatch):
     assert "cross_market" in out
     assert out["cross_market"]["available"] is True
     json.dumps(tools._clean(out), allow_nan=False)          # strict-JSON clean
+
+
+def test_adr_premium_snapshot_real_ratio_is_ten():
+    # SEC prospectus: 10 SKHY ADRs = 1 000660.KS share -> adr_ratio=10 (NOT 0.1).
+    # 152.31 * 1480.47 * 10 / 1_842_000 - 1 = +22.4%.  0.1 would give -98.8%.
+    local = _frame(["2026-07-16"], [1_842_000.0])
+    adr = _frame(["2026-07-16"], [152.31])
+    fx = _frame(["2026-07-16"], [1480.47])
+    snap = cross_market.adr_premium_snapshot(local, adr, fx, adr_ratio=10.0)
+    assert snap["premium_pct"] == pytest.approx(22.41, abs=0.05)
+    assert snap["zone"] == "rich"
+
+
+def test_adr_premium_snapshot_flags_conversion_regime():
+    adr = _frame(["2026-07-16"], [152.31])
+    fx = _frame(["2026-07-16"], [1480.47])
+    pre = _frame(["2026-07-16"], [1_842_000.0])   # before 2026-07-29
+    post = _frame(["2026-08-05"], [1_842_000.0])  # after 2026-07-29
+    assert cross_market.adr_premium_snapshot(pre, adr, fx, 10.0)["arbitrage_regime"] == "scarcity_premium_one_way"
+    assert cross_market.adr_premium_snapshot(post, adr, fx, 10.0)["arbitrage_regime"] == "two_way_active"

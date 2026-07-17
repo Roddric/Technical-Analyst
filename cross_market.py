@@ -76,17 +76,30 @@ def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
 def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
                          fx_df: pd.DataFrame, adr_ratio: float = 1.0,
                          band: float = 0.03) -> dict:
-    """Live descriptive premium from the latest available print of each venue."""
+    """Live descriptive premium from the latest available print of each venue.
+    adr_ratio = ADRs per local share (scales the ADR price up to a full-share
+    basis). Flags the pre/post two-way-conversion regime, because before
+    conversion opens the premium is a scarcity premium, not a reverting spread."""
     adr, fx, local = _last_finite(adr_df), _last_finite(fx_df), _last_finite(target_df)
     if not np.isfinite([adr, fx, local]).all() or local == 0:
         return {"available": False, "reason": "missing ADR / FX / local price"}
     adr_krw = adr * fx * adr_ratio
     premium = adr_krw / local - 1.0
     zone = "rich" if premium > band else "cheap" if premium < -band else "within_band"
+    conv = config.ADR_TWO_WAY_CONVERSION_DATE
+    two_way = pd.Timestamp(target_df.index[-1]) >= pd.Timestamp(conv)
+    regime = "two_way_active" if two_way else "scarcity_premium_one_way"
+    regime_note = ("two-way ADR<->local conversion active; premium is a "
+                   "mean-reverting arbitrage spread") if two_way else (
+                   f"one-way conversion only until {conv}; premium is a scarcity "
+                   "premium with no arbitrage force to parity — do NOT read it as a "
+                   "mean-reverting spread yet")
     return {"available": True, "adr_price": round(adr, 4), "fx": round(fx, 4),
             "adr_ratio": adr_ratio, "adr_in_krw": round(adr_krw, 2),
             "local_price": round(local, 2), "premium_pct": round(100 * premium, 2),
-            "band_pct": round(100 * band, 2), "zone": zone}
+            "band_pct": round(100 * band, 2), "zone": zone,
+            "two_way_conversion_date": conv, "arbitrage_regime": regime,
+            "regime_note": regime_note}
 
 
 def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dict:
