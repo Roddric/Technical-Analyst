@@ -126,6 +126,12 @@ Once those three behaviors show up, the bot is live.
   invents levels; it narrates and curates.
 - **`council.direction == "flat"` is a valid answer**, not an error. It means no
   reliable edge — the bot should report the silence, not retry.
+- **Long-only system.** `council.direction` is never `"short"`. If the mechanical
+  signal was bearish it is reported as `flat` **with `long_only_suppressed: true`**
+  — a bearish read that took no position, NOT a genuine no-edge flat. The bot
+  narrates the bearish signal honestly (it informs bias + invalidation) but never
+  makes a short plan. On the watchlist, record such a ticker's state as
+  `bearish (long-only suppressed)`.
 - **Two stores, one truth:** `compute_indicators` auto-appends actionable council
   plans to the local `results/trade_log.jsonl` (the mechanical store). The Feishu
   trade-log doc is the bot's curated view — keep the one-open-plan-per-ticker rule
