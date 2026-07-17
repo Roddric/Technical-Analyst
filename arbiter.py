@@ -24,7 +24,7 @@ def arbitrate(latest_signals: dict[str, float], weights: dict[str, float],
     contribs = {n: weights[n] * latest_signals.get(n, 0.0) for n in weights}
     score = sum(contribs.values())
     eff_n = _effective_n(weights)
-    if not weights or score == 0.0:
+    if not weights or not math.isfinite(score) or score == 0.0:
         return Decision(0, 0.0, contribs, eff_n)
     if score < 0 and long_only:
         # Bearish signal, but the long-only mandate takes no short position. Report

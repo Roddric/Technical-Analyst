@@ -44,3 +44,13 @@ def test_long_only_keeps_long():
 def test_default_still_allows_short():
     d = arbiter.arbitrate({"Fast": -1.5, "Slow": -1.0}, {"Fast": 0.6, "Slow": 0.4})
     assert d.direction == -1 and d.long_only_suppressed is False
+
+
+def test_nan_score_never_emits_short_or_nan_conviction():
+    # A degenerate NaN weighted score must resolve to a clean flat — never a short
+    # (which would violate long-only) and never a NaN conviction leaking downstream.
+    for long_only in (False, True):
+        d = arbiter.arbitrate({"Fast": float("nan")}, {"Fast": 1.0}, long_only=long_only)
+        assert d.direction == 0
+        assert d.conviction == 0.0
+        assert d.long_only_suppressed is False
