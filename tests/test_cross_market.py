@@ -199,3 +199,17 @@ def test_adr_premium_snapshot_flags_conversion_regime():
     post = _frame(["2026-08-05"], [1_842_000.0])  # after 2026-07-29
     assert cross_market.adr_premium_snapshot(pre, adr, fx, 10.0)["arbitrage_regime"] == "scarcity_premium_one_way"
     assert cross_market.adr_premium_snapshot(post, adr, fx, 10.0)["arbitrage_regime"] == "two_way_active"
+
+
+def test_asof_align_handles_mixed_datetime_resolution():
+    # Real yfinance/CSV data mixes datetime64[s]/[us]/[ns]; merge_asof requires the
+    # merge keys to match, so _asof_align must coerce both to one resolution.
+    tgt = pd.DatetimeIndex(pd.to_datetime(["2021-01-02", "2021-01-03"])).astype("datetime64[s]")
+    foreign = _frame(["2021-01-01", "2021-01-02"], [10, 20])
+    foreign.index = foreign.index.astype("datetime64[us]")
+    out = cross_market._asof_align(tgt, foreign[["close"]], strict_before=True)
+    assert list(out["close"].values) == [10.0, 20.0]        # would MergeError before the fix
+
+
+def test_build_signals_none_target_is_empty():
+    assert cross_market.build_signals(None, "000660.KS", loader=lambda t: _frame(["2021-01-01"], [1])) == {}

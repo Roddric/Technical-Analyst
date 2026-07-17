@@ -25,12 +25,15 @@ def _asof_align(target_index: pd.DatetimeIndex, foreign: pd.DataFrame,
     """Reindex `foreign` onto `target_index` by as-of backward merge.
     strict_before=True -> foreign date must be < target date (no same-date match)."""
     cols = list(foreign.columns)
-    target_index = pd.DatetimeIndex(target_index)
+    # Coerce to a single datetime64 resolution — real yfinance/CSV data mixes
+    # [s]/[us]/[ns], and merge_asof requires the two merge keys to match exactly.
+    target_index = pd.DatetimeIndex(target_index).astype("datetime64[ns]")
     if foreign is None or len(foreign) == 0:
         return pd.DataFrame(index=target_index, columns=cols, dtype=float)
     left = pd.DataFrame({"_t": target_index}).sort_values("_t")
     right = foreign.sort_index().reset_index()
     right.columns = ["_f"] + cols
+    right["_f"] = pd.DatetimeIndex(right["_f"]).astype("datetime64[ns]")
     merged = pd.merge_asof(left, right, left_on="_t", right_on="_f",
                            direction="backward", allow_exact_matches=not strict_before)
     merged.index = pd.DatetimeIndex(merged["_t"])
@@ -107,6 +110,8 @@ def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dic
     for `asset`. Returns {} if unconfigured or data is missing/too short."""
     cfg = config.CROSS_MARKET_MAP.get(asset)
     if not cfg:
+        return {}
+    if target_df is None or target_df.empty:
         return {}
     adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
     if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
