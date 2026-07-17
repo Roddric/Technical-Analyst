@@ -68,7 +68,8 @@ def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
                        fx_df: pd.DataFrame, adr_ratio: float = 1.0,
                        window: int = XMKT_Z_WINDOW) -> pd.Series:
     """Premium reversion: (ADR-in-KRW / local) - 1, on causally-aligned foreign
-    legs, causal-z-scored. Same underlying so the fair ratio is 1 (no beta fit)."""
+    legs, causal-z-scored. Same underlying, so no beta fit is needed (price beta
+    = 1); the ADR-to-share count is handled by adr_ratio (e.g. 10 ADRs/share)."""
     adr_close = _asof_align(target_df.index, adr_df[["close"]], strict_before=True)["close"]
     fx = _asof_align(target_df.index, fx_df[["close"]], strict_before=True)["close"]
     adr_krw = adr_close * fx * adr_ratio
