@@ -10,6 +10,13 @@ TA_FLAT_DIR = str(Path(__file__).resolve().parent / "vendor")
 HORIZON = 5                # forward-return horizon (trading days)
 LONG_ONLY = True           # policy: suppress short signals to flat (no short positions)
 
+# Cross-market linkage (Phase A: SK Hynix ADR)
+XMKT_Z_WINDOW = 60          # trailing window for causal z-scores
+XMKT_MIN_HISTORY = 150      # aligned finite bars required before a signal is emitted
+CROSS_MARKET_MAP = {        # target ticker -> foreign legs
+    "000660.KS": {"adr": "US.SKHY", "fx": "KRW=X", "adr_ratio": 1.0},
+}
+
 # Sets / decorrelation
 N_PERSONALITIES = 3        # legacy round-robin roster size (superseded by selection)
 DECORR_THRESHOLD = 0.6     # max allowed |corr| between set (error) series
