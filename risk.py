@@ -30,7 +30,10 @@ def build_levels(df: pd.DataFrame, decision: arbiter.Decision) -> Levels:
     entry = float(df["close"].iloc[-1])
     atr = _atr(df)
     if decision.direction == 0:
-        return Levels(entry, entry, entry, 0.0, True, "no set cleared the evidence gate")
+        reason = ("short signal suppressed by long-only rule"
+                  if decision.long_only_suppressed
+                  else "no set cleared the evidence gate")
+        return Levels(entry, entry, entry, 0.0, True, reason)
     if not np.isfinite(atr) or atr <= 0 or entry <= 0:
         return Levels(entry, entry, entry, 0.0, True, "ATR unavailable")
 

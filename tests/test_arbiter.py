@@ -24,3 +24,23 @@ def test_is_deterministic():
     a = arbiter.arbitrate({"Fast": 0.8, "Slow": -0.9}, {"Fast": 0.5, "Slow": 0.5})
     b = arbiter.arbitrate({"Fast": 0.8, "Slow": -0.9}, {"Fast": 0.5, "Slow": 0.5})
     assert a == b
+
+
+def test_long_only_suppresses_short():
+    d = arbiter.arbitrate({"Fast": -1.5, "Slow": -1.0}, {"Fast": 0.6, "Slow": 0.4},
+                          long_only=True)
+    assert d.direction == 0
+    assert d.conviction == 0.0
+    assert d.long_only_suppressed is True
+    assert d.effective_n > 0             # evidence preserved, not a no-signal flat
+
+
+def test_long_only_keeps_long():
+    d = arbiter.arbitrate({"Fast": 1.5, "Slow": 1.0}, {"Fast": 0.6, "Slow": 0.4},
+                          long_only=True)
+    assert d.direction == 1 and d.long_only_suppressed is False
+
+
+def test_default_still_allows_short():
+    d = arbiter.arbitrate({"Fast": -1.5, "Slow": -1.0}, {"Fast": 0.6, "Slow": 0.4})
+    assert d.direction == -1 and d.long_only_suppressed is False
