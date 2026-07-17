@@ -52,3 +52,38 @@ def adr_overnight_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
     adr_ret = adr_df["close"].pct_change().to_frame("adr_ret")
     aligned = _asof_align(target_df.index, adr_ret, strict_before=True)["adr_ret"]
     return _causal_zscore(aligned, window).rename("xmkt_adr_overnight")
+
+
+def _last_finite(df: pd.DataFrame) -> float:
+    if df is None or "close" not in df or len(df) == 0:
+        return float("nan")
+    c = df["close"].dropna()
+    return float(c.iloc[-1]) if len(c) else float("nan")
+
+
+def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
+                       fx_df: pd.DataFrame, adr_ratio: float = 1.0,
+                       window: int = XMKT_Z_WINDOW) -> pd.Series:
+    """Premium reversion: (ADR-in-KRW / local) - 1, on causally-aligned foreign
+    legs, causal-z-scored. Same underlying so the fair ratio is 1 (no beta fit)."""
+    adr_close = _asof_align(target_df.index, adr_df[["close"]], strict_before=True)["close"]
+    fx = _asof_align(target_df.index, fx_df[["close"]], strict_before=True)["close"]
+    adr_krw = adr_close * fx * adr_ratio
+    premium = adr_krw / target_df["close"] - 1.0
+    return _causal_zscore(premium, window).rename("xmkt_adr_premium")
+
+
+def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
+                         fx_df: pd.DataFrame, adr_ratio: float = 1.0,
+                         band: float = 0.03) -> dict:
+    """Live descriptive premium from the latest available print of each venue."""
+    adr, fx, local = _last_finite(adr_df), _last_finite(fx_df), _last_finite(target_df)
+    if not np.isfinite([adr, fx, local]).all() or local == 0:
+        return {"available": False, "reason": "missing ADR / FX / local price"}
+    adr_krw = adr * fx * adr_ratio
+    premium = adr_krw / local - 1.0
+    zone = "rich" if premium > band else "cheap" if premium < -band else "within_band"
+    return {"available": True, "adr_price": round(adr, 4), "fx": round(fx, 4),
+            "adr_ratio": adr_ratio, "adr_in_krw": round(adr_krw, 2),
+            "local_price": round(local, 2), "premium_pct": round(100 * premium, 2),
+            "band_pct": round(100 * band, 2), "zone": zone}

@@ -72,3 +72,42 @@ def test_adr_overnight_signal_values_are_causal():
     assert list(sig.index) == list(target.index)
     assert np.isnan(sig.iloc[0]) and np.isnan(sig.iloc[1])
     assert sig.iloc[2] == pytest.approx((0.0 - 0.05) / np.std([0.10, 0.0], ddof=1))
+
+
+def test_adr_premium_snapshot_matches_hand_calc():
+    # 152.31 * 1480 = 225418.8 ; / 228500 - 1 = -1.349% -> -1.35
+    target = _frame(["2026-07-15", "2026-07-16"], [228500, 228500])
+    adr = _frame(["2026-07-14", "2026-07-15"], [150.0, 152.31])
+    fx = _frame(["2026-07-14", "2026-07-15"], [1480.0, 1480.0])
+    snap = cross_market.adr_premium_snapshot(target, adr, fx, adr_ratio=1.0)
+    assert snap["available"] is True
+    assert snap["premium_pct"] == pytest.approx(-1.35, abs=0.01)
+    assert snap["zone"] == "within_band"
+
+
+def test_adr_premium_snapshot_zone_bands():
+    target = _frame(["2026-01-01"], [100.0])
+    adr_rich = _frame(["2026-01-01"], [110.0])          # +10% -> rich
+    fx = _frame(["2026-01-01"], [1.0])
+    assert cross_market.adr_premium_snapshot(target, adr_rich, fx, 1.0)["zone"] == "rich"
+    adr_cheap = _frame(["2026-01-01"], [90.0])           # -10% -> cheap
+    assert cross_market.adr_premium_snapshot(target, adr_cheap, fx, 1.0)["zone"] == "cheap"
+
+
+def test_adr_premium_snapshot_missing_data_unavailable():
+    target = _frame(["2026-01-01"], [100.0])
+    empty = _frame([], [])
+    snap = cross_market.adr_premium_snapshot(target, empty, empty, 1.0)
+    assert snap["available"] is False
+
+
+def test_adr_premium_signal_is_series_aligned_to_target():
+    n = 80
+    dates = pd.bdate_range("2021-01-01", periods=n)
+    target = _frame(dates, np.linspace(200000, 230000, n))
+    adr = _frame(dates, np.linspace(140, 155, n))
+    fx = _frame(dates, np.full(n, 1480.0))
+    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=20)
+    assert sig.name == "xmkt_adr_premium"
+    assert list(sig.index) == list(target.index)
+    assert np.isfinite(sig.iloc[-1])           # enough history -> finite tail
