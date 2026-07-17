@@ -87,3 +87,21 @@ def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
             "adr_ratio": adr_ratio, "adr_in_krw": round(adr_krw, 2),
             "local_price": round(local, 2), "premium_pct": round(100 * premium, 2),
             "band_pct": round(100 * band, 2), "zone": zone}
+
+
+def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dict:
+    """Load the configured foreign legs and return the cross-market signal series
+    for `asset`. Returns {} if unconfigured or data is missing/too short."""
+    cfg = config.CROSS_MARKET_MAP.get(asset)
+    if not cfg:
+        return {}
+    adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
+    if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
+        return {}
+    ratio = cfg.get("adr_ratio", 1.0)
+    candidates = {
+        "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
+        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
+    }
+    return {name: s for name, s in candidates.items()
+            if s.notna().sum() >= XMKT_MIN_HISTORY}

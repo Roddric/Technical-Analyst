@@ -111,3 +111,35 @@ def test_adr_premium_signal_is_series_aligned_to_target():
     assert sig.name == "xmkt_adr_premium"
     assert list(sig.index) == list(target.index)
     assert np.isfinite(sig.iloc[-1])           # enough history -> finite tail
+
+
+def _long_legs(n=300):
+    dates = pd.bdate_range("2020-01-01", periods=n)
+    target = _frame(dates, np.linspace(200000, 230000, n))
+    adr = _frame(dates, np.linspace(140, 155, n))
+    fx = _frame(dates, np.full(n, 1480.0))
+    return target, adr, fx
+
+
+def test_build_signals_returns_both_with_fake_loader():
+    target, adr, fx = _long_legs()
+    loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
+    sigs = cross_market.build_signals(target, "000660.KS", loader=loader)
+    assert set(sigs) == {"xmkt_adr_overnight", "xmkt_adr_premium"}
+    assert all(len(s) == len(target) for s in sigs.values())
+
+
+def test_build_signals_unconfigured_asset_is_empty():
+    target, _, _ = _long_legs()
+    assert cross_market.build_signals(target, "AAPL", loader=lambda t: None) == {}
+
+
+def test_build_signals_missing_leg_is_empty():
+    target, _, _ = _long_legs()
+    assert cross_market.build_signals(target, "000660.KS", loader=lambda t: None) == {}
+
+
+def test_build_signals_short_history_is_empty():
+    target, adr, fx = _long_legs(n=50)          # < XMKT_MIN_HISTORY
+    loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
+    assert cross_market.build_signals(target, "000660.KS", loader=loader) == {}
