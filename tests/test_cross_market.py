@@ -57,3 +57,27 @@ def test_causal_zscore_flat_series_is_nan_not_inf():
     z = cross_market._causal_zscore(s, window=5)
     assert not np.isinf(z).any()
     assert z.iloc[-1] != z.iloc[-1] or np.isnan(z.iloc[-1])   # NaN, not inf
+
+
+def test_adr_overnight_uses_prior_foreign_return_and_is_causal():
+    # ADR closes; its daily returns are aligned to the PRIOR foreign date for each target
+    adr = _frame(["2021-01-01", "2021-01-02", "2021-01-03", "2021-01-04"],
+                 [100, 110, 121, 121])                 # returns: nan, +0.10, +0.10, 0.0
+    target = _frame(["2021-01-03", "2021-01-04", "2021-01-05"], [1, 1, 1])
+    sig = cross_market.adr_overnight_signal(target, adr, window=2)
+    assert sig.name == "xmkt_adr_overnight"
+    assert list(sig.index) == list(target.index)
+    # target 2021-01-03 sees ADR return as-of < 01-03 -> the 01-02 return (+0.10)
+    raw = cross_market._asof_align(target.index, adr["close"].pct_change().to_frame("r"),
+                                   strict_before=True)["r"]
+    assert raw.iloc[0] == pytest.approx(0.10)
+
+
+def test_adr_overnight_never_leaks_same_or_future_day():
+    adr = _frame(["2021-01-01", "2021-01-02", "2021-01-03"], [100, 200, 400])
+    target = _frame(["2021-01-02"], [1])
+    raw = cross_market._asof_align(target.index, adr["close"].pct_change().to_frame("r"),
+                                   strict_before=True)["r"]
+    # at target 01-02, the only usable ADR return is 01-01's (which is NaN, first bar) -
+    # crucially NOT the 01-02 (+1.0) or 01-03 (+1.0) returns
+    assert raw.iloc[0] != pytest.approx(1.0)

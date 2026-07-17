@@ -43,3 +43,12 @@ def _causal_zscore(s: pd.Series, window: int = XMKT_Z_WINDOW) -> pd.Series:
     std = s.rolling(window).std()
     z = (s - mean) / std
     return z.replace([np.inf, -np.inf], np.nan)
+
+
+def adr_overnight_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
+                         window: int = XMKT_Z_WINDOW) -> pd.Series:
+    """Transmission: the ADR's freshest daily return available before the Korea
+    bar (as-of, strictly before), causal-z-scored. Sign/weight learned OOS."""
+    adr_ret = adr_df["close"].pct_change().to_frame("adr_ret")
+    aligned = _asof_align(target_df.index, adr_ret, strict_before=True)["adr_ret"]
+    return _causal_zscore(aligned, window).rename("xmkt_adr_overnight")
