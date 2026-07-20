@@ -267,3 +267,111 @@ def test_build_signals_drops_premium_when_regime_history_short():
     sigs = cross_market.build_signals(target, "000660.KS", loader=loader)
     assert "xmkt_adr_overnight" in sigs                       # clears XMKT_MIN_HISTORY
     assert "xmkt_adr_premium" not in sigs                     # fails XMKT_REGIME_MIN_BARS
+
+
+# --- Phase B: 7709.HK leveraged-ETF divergence ---
+
+def test_etf_divergence_math_is_exact():
+    """divergence = etf_ret - leverage*anchor_ret, on same-date Korea returns."""
+    dates = pd.bdate_range("2026-01-01", periods=6)
+    und = _frame(dates, [100.0, 110.0, 121.0, 121.0, 121.0, 133.1])   # +10%,+10%,0,0,+10%
+    etf = _frame(dates, [50.0, 60.0, 66.0, 66.0, 66.0, 79.2])         # +20%,+10%,0,0,+20%
+    sig = cross_market.etf_divergence_signal(etf, und, None, leverage=2.0, window=2)
+    assert sig.name == "xmkt_etf_divergence"
+    assert list(sig.index) == list(etf.index)
+    # bar 2: etf +10% vs 2*(+10%) = +20% expected -> divergence = -0.10 (under-reacting)
+    # bar 5: etf +20% vs 2*(+10%) = +20% expected -> divergence =  0.00 (tracking)
+    raw = etf["close"].pct_change() - 2.0 * und["close"].pct_change()
+    assert raw.iloc[2] == pytest.approx(-0.10)
+    assert raw.iloc[5] == pytest.approx(0.0, abs=1e-12)
+
+
+def test_etf_anchor_uses_same_date_korea_return():
+    """HK closes after Korea, so the SAME-date underlying return is causally
+    available and must be used (not the prior day's)."""
+    dates = pd.bdate_range("2026-01-01", periods=4)
+    und = _frame(dates, [100.0, 110.0, 121.0, 133.1])       # +10% each day
+    anchor = cross_market._etf_anchor_return(dates, und, None)
+    assert np.isnan(anchor.iloc[0])                          # no prior bar
+    assert anchor.iloc[1] == pytest.approx(0.10)             # same-date, not shifted
+
+
+def test_etf_substitute_anchor_fires_only_on_korea_holidays():
+    """The load-bearing coalesce: same-date Korea return where Korea traded;
+    SKHY strictly-before overnight return only where it did not."""
+    etf_dates = pd.to_datetime(["2026-01-05", "2026-01-06", "2026-01-07"])
+    # Korea is MISSING 2026-01-06 (holiday); trades 01-05 and 01-07
+    und = _frame(["2026-01-02", "2026-01-05", "2026-01-07"], [100.0, 110.0, 121.0])
+    # SKHY prints every day; its return into 01-06 is +50% (deliberately distinct)
+    sub = _frame(["2026-01-04", "2026-01-05", "2026-01-06"], [10.0, 15.0, 30.0])
+    anchor = cross_market._etf_anchor_return(etf_dates, und, sub)
+    assert anchor.iloc[0] == pytest.approx(0.10)     # Korea traded 01-05: 100->110
+    assert anchor.iloc[1] == pytest.approx(0.50)     # holiday -> SKHY strictly-before
+    assert anchor.iloc[2] == pytest.approx(0.10)     # Korea traded 01-07: 110->121
+
+
+def test_etf_divergence_snapshot_reads_over_and_under_reaction():
+    dates = pd.bdate_range("2026-01-01", periods=3)
+    und = _frame(dates, [100.0, 110.0, 121.0])               # +10% each day
+    over = _frame(dates, [50.0, 60.0, 78.0])                 # last +30% vs +20% expected
+    snap = cross_market.etf_divergence_snapshot(over, und, None, leverage=2.0)
+    assert snap["available"] is True
+    assert snap["anchor_return_pct"] == pytest.approx(10.0)
+    assert snap["expected_return_pct"] == pytest.approx(20.0)
+    assert snap["divergence_pct"] == pytest.approx(10.0)
+    assert "over-reacting" in snap["read"]
+    under = _frame(dates, [50.0, 60.0, 66.0])                # last +10% vs +20%
+    assert "under-reacting" in cross_market.etf_divergence_snapshot(
+        under, und, None, leverage=2.0)["read"]
+
+
+def test_etf_divergence_snapshot_unavailable_on_thin_data():
+    one = _frame(["2026-01-01"], [50.0])
+    assert cross_market.etf_divergence_snapshot(one, one, None)["available"] is False
+
+
+def _etf_legs(n=300, start="2025-01-01"):
+    dates = pd.bdate_range(start, periods=n)
+    und = _frame(dates, np.linspace(200000, 230000, n))
+    etf = _frame(dates, np.linspace(40, 50, n))
+    sub = _frame(dates, np.linspace(140, 155, n))
+    return etf, und, sub
+
+
+def test_build_signals_dispatches_etf_shape():
+    etf, und, sub = _etf_legs()
+    loader = lambda t: {"000660.KS": und, "SKHY": sub}.get(t)
+    sigs = cross_market.build_signals(etf, "7709.HK", loader=loader)
+    assert set(sigs) == {"xmkt_etf_divergence"}          # NOT the ADR signals
+    assert len(sigs["xmkt_etf_divergence"]) == len(etf)
+
+
+def test_build_signals_etf_missing_underlying_is_empty():
+    etf, _, _ = _etf_legs()
+    assert cross_market.build_signals(etf, "7709.HK", loader=lambda t: None) == {}
+
+
+def test_build_signals_etf_short_history_is_empty():
+    etf, und, sub = _etf_legs(n=50)                      # < XMKT_MIN_HISTORY
+    loader = lambda t: {"000660.KS": und, "SKHY": sub}.get(t)
+    assert cross_market.build_signals(etf, "7709.HK", loader=loader) == {}
+
+
+def test_compute_indicators_dispatches_etf_snapshot(monkeypatch):
+    """7709.HK routes to the ETF divergence snapshot, not the ADR premium."""
+    import json
+    import tools
+
+    etf, und, sub = _etf_legs()
+    monkeypatch.setattr(tools.ind, "get_stock_data",
+                        lambda t, *a, **k: {"7709.HK": etf, "000660.KS": und,
+                                            "SKHY": sub}.get(t))
+    monkeypatch.setattr(tools.ind, "compute_indicators", lambda df: {"overview": {}})
+    monkeypatch.setattr(tools, "council_verdict", lambda t: {"available": False})
+    monkeypatch.setattr(tools.tradelog, "record_plan", lambda *a, **k: False)
+
+    out = tools.compute_indicators("7709.HK")
+    assert out["cross_market"]["available"] is True
+    assert "read" in out["cross_market"]                  # ETF-shaped, not ADR-shaped
+    assert "premium_pct" not in out["cross_market"]
+    json.dumps(tools._clean(out), allow_nan=False)        # strict-JSON clean

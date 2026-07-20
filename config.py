@@ -17,8 +17,15 @@ XMKT_MIN_HISTORY = 150      # aligned finite bars required before a signal is em
 # prospectus). Formula: premium = adr_usd * fx * adr_ratio / local - 1 (scales the
 # ADR up to a full-share basis). NOTE: this is 10, NOT 0.1 — the ratio multiplies
 # the ADR side; "1 ADR = 1/10 share" encodes here as 10 ADRs-per-share.
+# Phase B: 7709.HK is the HK-listed 2x-daily-leveraged ETF on 000660.KS. The
+# anchor is the PLAIN KRW return with NO FX term — settled empirically, not by
+# argument (regression on n=159: KRW anchor R2=0.933/beta=1.78 beats the
+# HKD-translated R2=0.920). `leverage` is the NOMINAL 2.0; the causal z-score
+# de-means the systematic 2-vs-1.78 tracking friction, so no rolling beta fit is
+# needed. `substitute` is the Korea-holiday fallback anchor.
 CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
     "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0},
+    "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY", "leverage": 2.0},
 }
 # Two-way ADR<->local conversion opens 2026-07-29. BEFORE it, the premium is a
 # ONE-WAY scarcity premium with no arbitrage force to parity, so

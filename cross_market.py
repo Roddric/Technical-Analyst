@@ -118,22 +118,108 @@ def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
             "regime_note": regime_note}
 
 
+def _etf_anchor_return(etf_index: pd.DatetimeIndex, und_df: pd.DataFrame,
+                       sub_df: pd.DataFrame | None) -> pd.Series:
+    """Anchor return for each ETF bar: the underlying's SAME-DATE local return.
+
+    Causal by market hours, not by lag: Korea closes 15:30 KST, HK closes 16:00
+    HKT (= 15:00 KST +1h) — the Korea print is already public when HK marks. On
+    Korea holidays there is no same-date bar, so fall back to the substitute's
+    STRICTLY-BEFORE overnight return (which needs the causal as-of, having no
+    such intraday guarantee)."""
+    und_ret = und_df["close"].pct_change()
+    und_ret.index = pd.DatetimeIndex(und_ret.index).astype("datetime64[ns]")
+    idx = pd.DatetimeIndex(etf_index).astype("datetime64[ns]")
+    anchor = und_ret.reindex(idx)                    # NaN where Korea did not trade
+    if sub_df is not None and len(sub_df):
+        sub_ret = sub_df["close"].pct_change().to_frame("r")
+        anchor = anchor.fillna(_asof_align(idx, sub_ret, strict_before=True)["r"])
+    return anchor
+
+
+def etf_divergence_signal(etf_df: pd.DataFrame, und_df: pd.DataFrame,
+                          sub_df: pd.DataFrame | None = None,
+                          leverage: float = 2.0,
+                          window: int = XMKT_Z_WINDOW) -> pd.Series:
+    """Leveraged-ETF divergence: how far the 2x ETF moved beyond 2x its
+    underlying. Excess tends to revert as market-maker create/redeem arbitrage
+    re-couples the ETF to the underlying, so this is a mean-reversion signal on
+    the ETF's OWN forward return. Sign (expected negative — fade the
+    over-reaction) and weight are learned OOS, never hardcoded."""
+    etf_ret = etf_df["close"].pct_change()
+    etf_ret.index = pd.DatetimeIndex(etf_ret.index).astype("datetime64[ns]")
+    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df)
+    divergence = etf_ret - leverage * anchor
+    return _causal_zscore(divergence, window).rename("xmkt_etf_divergence")
+
+
+def etf_divergence_snapshot(etf_df: pd.DataFrame, und_df: pd.DataFrame,
+                            sub_df: pd.DataFrame | None = None,
+                            leverage: float = 2.0) -> dict:
+    """Live descriptive read on the latest bar: is today's ETF move explained by
+    the underlying, or is it over/under-reacting? Descriptive only — it carries
+    no mechanical weight and is available long before the signal can emit."""
+    if etf_df is None or "close" not in etf_df or len(etf_df) < 2:
+        return {"available": False, "reason": "insufficient ETF history"}
+    etf_ret = etf_df["close"].pct_change()
+    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df)
+    e, a = float(etf_ret.iloc[-1]), float(anchor.iloc[-1])
+    if not np.isfinite([e, a]).all():
+        return {"available": False, "reason": "missing ETF or anchor return"}
+    expected = leverage * a
+    div = e - expected
+    read = ("over-reacting vs %gx" % leverage) if div > 0 else (
+           ("under-reacting vs %gx" % leverage) if div < 0 else "tracking %gx" % leverage)
+    return {"available": True, "etf_return_pct": round(100 * e, 2),
+            "anchor_return_pct": round(100 * a, 2), "leverage": leverage,
+            "expected_return_pct": round(100 * expected, 2),
+            "divergence_pct": round(100 * div, 2), "read": read,
+            "note": "descriptive only; the mechanical signal is gated on "
+                    "XMKT_MIN_HISTORY and may still be absent"}
+
+
+def _adr_candidates(target_df, cfg, loader) -> dict:
+    """Phase A shape: {"adr": ..., "fx": ...} — the ADR-vs-local pair."""
+    adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
+    if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
+        return {}
+    ratio = cfg.get("adr_ratio", 1.0)
+    return {
+        "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
+        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
+    }
+
+
+def _etf_candidates(target_df, cfg, loader) -> dict:
+    """Phase B shape: {"underlying": ..., "leverage": ...} — the leveraged ETF.
+    The substitute anchor is optional; without it, Korea holidays simply stay
+    NaN and are excluded by the history gate rather than guessed at."""
+    und_df = loader(cfg["underlying"])
+    if und_df is None or und_df.empty:
+        return {}
+    sub = cfg.get("substitute")
+    sub_df = loader(sub) if sub else None
+    if sub_df is not None and sub_df.empty:
+        sub_df = None
+    lev = cfg.get("leverage", 2.0)
+    return {"xmkt_etf_divergence": etf_divergence_signal(target_df, und_df, sub_df, lev)}
+
+
 def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dict:
     """Load the configured foreign legs and return the cross-market signal series
-    for `asset`. Returns {} if unconfigured or data is missing/too short."""
+    for `asset`. Dispatches on the SHAPE of the config entry (ADR-shaped vs
+    ETF-shaped). Returns {} if unconfigured or data is missing/too short."""
     cfg = config.CROSS_MARKET_MAP.get(asset)
     if not cfg:
         return {}
     if target_df is None or target_df.empty:
         return {}
-    adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
-    if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
+    if "adr" in cfg:
+        candidates = _adr_candidates(target_df, cfg, loader)
+    elif "underlying" in cfg:
+        candidates = _etf_candidates(target_df, cfg, loader)
+    else:
         return {}
-    ratio = cfg.get("adr_ratio", 1.0)
-    candidates = {
-        "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
-        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
-    }
     # xmkt_adr_premium counts POST-REGIME bars only (pre-conversion history was
     # dropped upstream), so it answers a different evidence question than the
     # plain history gate and carries its own threshold.

@@ -79,7 +79,7 @@ def compute_indicators(ticker: str) -> dict:
     out["ticker"] = ticker
     out["council"] = council_verdict(ticker)
     cfg = config.CROSS_MARKET_MAP.get(ticker)
-    if cfg:
+    if cfg and "adr" in cfg:                    # Phase A: ADR premium vs local
         adr = ind.get_stock_data(cfg["adr"])
         fx = ind.get_stock_data(cfg["fx"])
         local = ind.get_stock_data(ticker)
@@ -88,6 +88,14 @@ def compute_indicators(ticker: str) -> dict:
                 local, adr, fx, cfg.get("adr_ratio", 1.0))
         else:
             out["cross_market"] = {"available": False, "reason": "foreign data unavailable"}
+    elif cfg and "underlying" in cfg:           # Phase B: leveraged-ETF divergence
+        und = ind.get_stock_data(cfg["underlying"])
+        sub = ind.get_stock_data(cfg["substitute"]) if cfg.get("substitute") else None
+        if und is not None:
+            out["cross_market"] = cross_market.etf_divergence_snapshot(
+                df, und, sub, cfg.get("leverage", 2.0))
+        else:
+            out["cross_market"] = {"available": False, "reason": "underlying data unavailable"}
     # Log the plan if it is actionable (one open plan per ticker; flat/veto skip).
     entry_date = str(df.index[-1].date())
     out["logged"] = tradelog.record_plan(ticker, out["council"], entry_date)
