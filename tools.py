@@ -16,6 +16,7 @@ import sys
 import config
 config.ensure_reuse_on_path()
 
+import cross_market
 import indicators as ind
 import run
 import tradelog
@@ -77,6 +78,16 @@ def compute_indicators(ticker: str) -> dict:
     out = ind.compute_indicators(df)
     out["ticker"] = ticker
     out["council"] = council_verdict(ticker)
+    cfg = config.CROSS_MARKET_MAP.get(ticker)
+    if cfg:
+        adr = ind.get_stock_data(cfg["adr"])
+        fx = ind.get_stock_data(cfg["fx"])
+        local = ind.get_stock_data(ticker)
+        if adr is not None and fx is not None and local is not None:
+            out["cross_market"] = cross_market.adr_premium_snapshot(
+                local, adr, fx, cfg.get("adr_ratio", 1.0))
+        else:
+            out["cross_market"] = {"available": False, "reason": "foreign data unavailable"}
     # Log the plan if it is actionable (one open plan per ticker; flat/veto skip).
     entry_date = str(df.index[-1].date())
     out["logged"] = tradelog.record_plan(ticker, out["council"], entry_date)

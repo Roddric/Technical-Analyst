@@ -6,3 +6,7 @@ numpy>=1.26
 scipy>=1.11
 akshare>=1.18
 pandas-ta-openbb>=0.4
+# Fallback price fetch for Yahoo-style symbols akshare can't route (000660.KS,
+# KRW=X, SKHY) — see price_cache._fetch_yf. Imported lazily, but it is a real
+# runtime dependency: tests/test_price_cache_yf.py fails to collect without it.
+yfinance>=0.2

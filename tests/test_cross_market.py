@@ -107,14 +107,19 @@ def test_adr_premium_signal_is_series_aligned_to_target():
     target = _frame(dates, np.linspace(200000, 230000, n))
     adr = _frame(dates, np.linspace(140, 155, n))
     fx = _frame(dates, np.full(n, 1480.0))
-    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=20)
+    # regime_start before the fixture so this exercises ALIGNMENT alone; the
+    # regime gate itself is covered by the tests below.
+    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=20,
+                                          regime_start="2020-01-01")
     assert sig.name == "xmkt_adr_premium"
     assert list(sig.index) == list(target.index)
     assert np.isfinite(sig.iloc[-1])           # enough history -> finite tail
 
 
-def _long_legs(n=300):
-    dates = pd.bdate_range("2020-01-01", periods=n)
+# Post-conversion by default: the premium signal only has a defined mean-reversion
+# premise after ADR_TWO_WAY_CONVERSION_DATE, so build_signals fixtures live there.
+def _long_legs(n=300, start="2026-08-03"):
+    dates = pd.bdate_range(start, periods=n)
     target = _frame(dates, np.linspace(200000, 230000, n))
     adr = _frame(dates, np.linspace(140, 155, n))
     fx = _frame(dates, np.full(n, 1480.0))
@@ -123,7 +128,7 @@ def _long_legs(n=300):
 
 def test_build_signals_returns_both_with_fake_loader():
     target, adr, fx = _long_legs()
-    loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
+    loader = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
     sigs = cross_market.build_signals(target, "000660.KS", loader=loader)
     assert set(sigs) == {"xmkt_adr_overnight", "xmkt_adr_premium"}
     assert all(len(s) == len(target) for s in sigs.values())
@@ -141,7 +146,7 @@ def test_build_signals_missing_leg_is_empty():
 
 def test_build_signals_short_history_is_empty():
     target, adr, fx = _long_legs(n=50)          # < XMKT_MIN_HISTORY
-    loader = lambda t: {"US.SKHY": adr, "KRW=X": fx}.get(t)
+    loader = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
     assert cross_market.build_signals(target, "000660.KS", loader=loader) == {}
 
 
@@ -158,3 +163,107 @@ def test_run_analyze_asset_appends_cross_market_signals(monkeypatch, synth_ohlcv
     monkeypatch.setattr(run.cross_market_mod, "build_signals", fake_build)
     run.analyze_asset(df, "000660.KS")
     assert seen["asset"] == "000660.KS" and seen["is_df"] is True
+
+
+def test_compute_indicators_adds_cross_market_snapshot(monkeypatch):
+    import json
+    import tools
+    import cross_market as cm
+
+    target, adr, fx = _long_legs()
+    # make the descriptive fetch return our synthetic legs, and the local df
+    monkeypatch.setattr(tools.ind, "get_stock_data",
+                        lambda t, *a, **k: {"SKHY": adr, "KRW=X": fx,
+                                            "000660.KS": target}.get(t))
+    # keep the indicator suite itself from doing heavy work: stub compute_indicators core
+    monkeypatch.setattr(tools.ind, "compute_indicators", lambda df: {"overview": {}})
+    monkeypatch.setattr(tools, "council_verdict", lambda t: {"available": False})
+    monkeypatch.setattr(tools.tradelog, "record_plan", lambda *a, **k: False)
+
+    out = tools.compute_indicators("000660.KS")
+    assert "cross_market" in out
+    assert out["cross_market"]["available"] is True
+    json.dumps(tools._clean(out), allow_nan=False)          # strict-JSON clean
+
+
+def test_adr_premium_snapshot_real_ratio_is_ten():
+    # SEC prospectus: 10 SKHY ADRs = 1 000660.KS share -> adr_ratio=10 (NOT 0.1).
+    # 152.31 * 1480.47 * 10 / 1_842_000 - 1 = +22.4%.  0.1 would give -98.8%.
+    local = _frame(["2026-07-16"], [1_842_000.0])
+    adr = _frame(["2026-07-16"], [152.31])
+    fx = _frame(["2026-07-16"], [1480.47])
+    snap = cross_market.adr_premium_snapshot(local, adr, fx, adr_ratio=10.0)
+    assert snap["premium_pct"] == pytest.approx(22.41, abs=0.05)
+    assert snap["zone"] == "rich"
+
+
+def test_adr_premium_snapshot_flags_conversion_regime():
+    adr = _frame(["2026-07-16"], [152.31])
+    fx = _frame(["2026-07-16"], [1480.47])
+    pre = _frame(["2026-07-16"], [1_842_000.0])   # before 2026-07-29
+    post = _frame(["2026-08-05"], [1_842_000.0])  # after 2026-07-29
+    assert cross_market.adr_premium_snapshot(pre, adr, fx, 10.0)["arbitrage_regime"] == "scarcity_premium_one_way"
+    assert cross_market.adr_premium_snapshot(post, adr, fx, 10.0)["arbitrage_regime"] == "two_way_active"
+
+
+def test_asof_align_handles_mixed_datetime_resolution():
+    # Real yfinance/CSV data mixes datetime64[s]/[us]/[ns]; merge_asof requires the
+    # merge keys to match, so _asof_align must coerce both to one resolution.
+    tgt = pd.DatetimeIndex(pd.to_datetime(["2021-01-02", "2021-01-03"])).astype("datetime64[s]")
+    foreign = _frame(["2021-01-01", "2021-01-02"], [10, 20])
+    foreign.index = foreign.index.astype("datetime64[us]")
+    out = cross_market._asof_align(tgt, foreign[["close"]], strict_before=True)
+    assert list(out["close"].values) == [10.0, 20.0]        # would MergeError before the fix
+
+
+def test_build_signals_none_target_is_empty():
+    assert cross_market.build_signals(None, "000660.KS", loader=lambda t: _frame(["2021-01-01"], [1])) == {}
+
+
+# --- regime gate: the premium's reversion premise starts at two-way conversion ---
+
+def _pre_post_legs(n_pre=40, n_post=40):
+    """Legs straddling ADR_TWO_WAY_CONVERSION_DATE, with a deliberately different
+    premium level on each side (~+50% pre, ~0% post) so any pre-regime value that
+    leaked into a post-regime z-window would visibly move the result."""
+    pre = pd.bdate_range("2026-05-01", periods=n_pre)      # before 2026-07-29
+    post = pd.bdate_range("2026-08-03", periods=n_post)    # after
+    dates = pre.append(post)
+    target = _frame(dates, np.full(len(dates), 100_000.0))
+    adr_px = np.concatenate([150_000 + np.arange(n_pre) * 10.0,      # ~+50% premium
+                             100_000 + np.arange(n_post) * 10.0])    # ~0% premium
+    adr = _frame(dates, adr_px)
+    fx = _frame(dates, np.ones(len(dates)))
+    return target, adr, fx
+
+
+def test_adr_premium_signal_is_absent_before_conversion():
+    target, adr, fx = _pre_post_legs()
+    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=5)
+    conv = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE)
+    assert list(sig.index) == list(target.index)          # still target-aligned
+    assert sig[sig.index < conv].isna().all()             # one-way era: no signal at all
+    assert np.isfinite(sig[sig.index >= conv]).any()      # post-conversion: emits
+
+
+def test_adr_premium_zscore_excludes_pre_regime_history():
+    """The load-bearing one: pre-conversion premium must never enter a
+    post-conversion trailing mean/std. Dropping pre-regime bars makes the
+    post-regime series identical to one computed from post-regime data alone;
+    merely MASKING after z-scoring would not."""
+    target, adr, fx = _pre_post_legs()
+    conv = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE)
+    full = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=5)
+    post_only = cross_market.adr_premium_signal(
+        target[target.index >= conv], adr, fx, adr_ratio=1.0, window=5)
+    pd.testing.assert_series_equal(full[full.index >= conv], post_only)
+
+
+def test_build_signals_drops_premium_when_regime_history_short():
+    """Asymmetry: plenty of DATA history, but little REGIME history. The
+    overnight signal (regime-independent) survives; the premium does not."""
+    target, adr, fx = _long_legs(n=300, start="2026-01-01")   # conversion mid-sample
+    loader = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
+    sigs = cross_market.build_signals(target, "000660.KS", loader=loader)
+    assert "xmkt_adr_overnight" in sigs                       # clears XMKT_MIN_HISTORY
+    assert "xmkt_adr_premium" not in sigs                     # fails XMKT_REGIME_MIN_BARS

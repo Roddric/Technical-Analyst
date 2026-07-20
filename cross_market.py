@@ -25,12 +25,15 @@ def _asof_align(target_index: pd.DatetimeIndex, foreign: pd.DataFrame,
     """Reindex `foreign` onto `target_index` by as-of backward merge.
     strict_before=True -> foreign date must be < target date (no same-date match)."""
     cols = list(foreign.columns)
-    target_index = pd.DatetimeIndex(target_index)
+    # Coerce to a single datetime64 resolution — real yfinance/CSV data mixes
+    # [s]/[us]/[ns], and merge_asof requires the two merge keys to match exactly.
+    target_index = pd.DatetimeIndex(target_index).astype("datetime64[ns]")
     if foreign is None or len(foreign) == 0:
         return pd.DataFrame(index=target_index, columns=cols, dtype=float)
     left = pd.DataFrame({"_t": target_index}).sort_values("_t")
     right = foreign.sort_index().reset_index()
     right.columns = ["_f"] + cols
+    right["_f"] = pd.DatetimeIndex(right["_f"]).astype("datetime64[ns]")
     merged = pd.merge_asof(left, right, left_on="_t", right_on="_f",
                            direction="backward", allow_exact_matches=not strict_before)
     merged.index = pd.DatetimeIndex(merged["_t"])
@@ -63,30 +66,56 @@ def _last_finite(df: pd.DataFrame) -> float:
 
 def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
                        fx_df: pd.DataFrame, adr_ratio: float = 1.0,
-                       window: int = XMKT_Z_WINDOW) -> pd.Series:
+                       window: int = XMKT_Z_WINDOW,
+                       regime_start=None) -> pd.Series:
     """Premium reversion: (ADR-in-KRW / local) - 1, on causally-aligned foreign
-    legs, causal-z-scored. Same underlying so the fair ratio is 1 (no beta fit)."""
+    legs, causal-z-scored. Same underlying, so no beta fit is needed (price beta
+    = 1); the ADR-to-share count is handled by adr_ratio (e.g. 10 ADRs/share).
+
+    REGIME-GATED. The reversion premise needs two-way conversion to supply an
+    arbitrage force to parity; before that the premium is a one-way scarcity
+    premium with a different mean. Bars before `regime_start` are therefore
+    DROPPED before z-scoring, not masked after it — masking would still let
+    scarcity-premium values sit in the trailing mean/std of a post-conversion
+    bar. The tail stays NaN until enough post-regime history accumulates."""
     adr_close = _asof_align(target_df.index, adr_df[["close"]], strict_before=True)["close"]
     fx = _asof_align(target_df.index, fx_df[["close"]], strict_before=True)["close"]
     adr_krw = adr_close * fx * adr_ratio
     premium = adr_krw / target_df["close"] - 1.0
-    return _causal_zscore(premium, window).rename("xmkt_adr_premium")
+    start = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE
+                         if regime_start is None else regime_start)
+    post = premium[pd.DatetimeIndex(premium.index) >= start]
+    z = _causal_zscore(post, window)
+    return z.reindex(premium.index).rename("xmkt_adr_premium")
 
 
 def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
                          fx_df: pd.DataFrame, adr_ratio: float = 1.0,
                          band: float = 0.03) -> dict:
-    """Live descriptive premium from the latest available print of each venue."""
+    """Live descriptive premium from the latest available print of each venue.
+    adr_ratio = ADRs per local share (scales the ADR price up to a full-share
+    basis). Flags the pre/post two-way-conversion regime, because before
+    conversion opens the premium is a scarcity premium, not a reverting spread."""
     adr, fx, local = _last_finite(adr_df), _last_finite(fx_df), _last_finite(target_df)
     if not np.isfinite([adr, fx, local]).all() or local == 0:
         return {"available": False, "reason": "missing ADR / FX / local price"}
     adr_krw = adr * fx * adr_ratio
     premium = adr_krw / local - 1.0
     zone = "rich" if premium > band else "cheap" if premium < -band else "within_band"
+    conv = config.ADR_TWO_WAY_CONVERSION_DATE
+    two_way = pd.Timestamp(target_df.index[-1]) >= pd.Timestamp(conv)
+    regime = "two_way_active" if two_way else "scarcity_premium_one_way"
+    regime_note = ("two-way ADR<->local conversion active; premium is a "
+                   "mean-reverting arbitrage spread") if two_way else (
+                   f"one-way conversion only until {conv}; premium is a scarcity "
+                   "premium with no arbitrage force to parity — do NOT read it as a "
+                   "mean-reverting spread yet")
     return {"available": True, "adr_price": round(adr, 4), "fx": round(fx, 4),
             "adr_ratio": adr_ratio, "adr_in_krw": round(adr_krw, 2),
             "local_price": round(local, 2), "premium_pct": round(100 * premium, 2),
-            "band_pct": round(100 * band, 2), "zone": zone}
+            "band_pct": round(100 * band, 2), "zone": zone,
+            "two_way_conversion_date": conv, "arbitrage_regime": regime,
+            "regime_note": regime_note}
 
 
 def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dict:
@@ -94,6 +123,8 @@ def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dic
     for `asset`. Returns {} if unconfigured or data is missing/too short."""
     cfg = config.CROSS_MARKET_MAP.get(asset)
     if not cfg:
+        return {}
+    if target_df is None or target_df.empty:
         return {}
     adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
     if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
@@ -103,5 +134,9 @@ def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dic
         "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
         "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
     }
+    # xmkt_adr_premium counts POST-REGIME bars only (pre-conversion history was
+    # dropped upstream), so it answers a different evidence question than the
+    # plain history gate and carries its own threshold.
+    min_bars = {"xmkt_adr_premium": config.XMKT_REGIME_MIN_BARS}
     return {name: s for name, s in candidates.items()
-            if s.notna().sum() >= XMKT_MIN_HISTORY}
+            if s.notna().sum() >= min_bars.get(name, XMKT_MIN_HISTORY)}

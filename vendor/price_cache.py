@@ -35,7 +35,7 @@ _ASHARE_COLS = {"日期": "date", "开盘": "open", "收盘": "close",
                 "最高": "high", "最低": "low", "成交量": "volume"}
 
 
-def _fetch(tkr: str) -> pd.DataFrame | None:
+def _fetch_akshare(tkr: str) -> pd.DataFrame | None:
     """Fetch full daily history via akshare, routed by symbol shape:
       - 6 digits            -> A-share  (stock_zh_a_hist, qfq-adjusted)
       - <=5 digits          -> Hong Kong (stock_hk_daily, qfq-adjusted)
@@ -77,6 +77,44 @@ def _fetch(tkr: str) -> pd.DataFrame | None:
     for c in need:
         out[c] = pd.to_numeric(out[c], errors="coerce")
     return out.dropna(how="all").sort_index()
+
+
+def _fetch_yf(tkr: str) -> pd.DataFrame | None:
+    """Fallback fetch via yfinance for Yahoo-style symbols akshare can't route
+    (e.g. 000660.KS, KRW=X, SKHY). Normalized to the same contract: naive
+    DatetimeIndex named 'Date', lowercase OHLCV, auto-adjusted."""
+    try:
+        import yfinance as yf
+        df = yf.download(tkr, period="max", auto_adjust=True, progress=False)
+    except Exception:  # noqa: BLE001 — any fetch/parse error is a miss
+        return None
+    if df is None or len(df) == 0:
+        return None
+    df = df.copy()
+    # yfinance may return MultiIndex columns (field, ticker) for a single symbol.
+    df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+    df = df.rename(columns=str.lower)
+    need = ["open", "high", "low", "close", "volume"]
+    for c in need:
+        if c not in df.columns:
+            df[c] = float("nan")               # e.g. FX series have no volume
+    idx = pd.to_datetime(df.index, errors="coerce")
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    out = df[need].copy()
+    out.index = idx.normalize()
+    out.index.name = "Date"
+    for c in need:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    return out.dropna(how="all").sort_index()
+
+
+def _fetch(tkr: str) -> pd.DataFrame | None:
+    """akshare first (A-share/HK/US), then yfinance for Yahoo-style symbols."""
+    df = _fetch_akshare(tkr)
+    if df is not None and len(df) > 0:
+        return df
+    return _fetch_yf(tkr)
 
 
 def load(tkr: str) -> pd.DataFrame | None:
