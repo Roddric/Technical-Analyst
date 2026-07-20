@@ -34,6 +34,11 @@ STEP 1 — GET DATA + INDICATORS (one command)
                     (direction, high/low + dates). available==false means no clean
                     swing exists — say so, do NOT invent levels.
       - council:    the system's own evidence-weighted quantitative verdict (STEP 2)
+      - cross_market: PRESENT ONLY for dual-listed tickers. Most tickers do NOT
+                    have this key, and that is normal — when it is absent, say
+                    NOTHING about cross-market at all. Do not mention it, do not
+                    note its absence, do not apologise for it. Only discuss it
+                    when the key is actually in the JSON.
   A JSON value of null means that indicator was not computable — note it and continue.
   For raw OHLCV rows if you need them: python tools.py get_stock_data <TICKER> [n_rows]
 
@@ -158,6 +163,23 @@ Every report must contain these sections in this order:
      which single level is nearest and whether price sits above or below it. If
      either block is available==false, say the structure was not clean rather than
      forcing levels that are not there.
+   - ONLY IF the JSON contains a `cross_market` key: add a short "cross-listing
+     context" note here. If there is no such key, skip this entirely and write
+     nothing about it — no placeholder, no "not applicable" line.
+     When it IS present:
+       * Report what it says: the premium/divergence figure and its zone or read.
+       * It is DESCRIPTIVE CONTEXT, never a trade signal on its own. `council`
+         remains the only mechanical verdict. Do not let a rich premium or an
+         over-reacting ETF move your bias by itself.
+       * If `arbitrage_regime` is "scarcity_premium_one_way", do NOT describe the
+         premium as mean-reverting or say it "should converge" — before two-way
+         conversion opens there is no arbitrage force to parity. Quote the
+         block's own `regime_note`.
+       * NEVER infer this listing's direction from another listing's behaviour.
+         The premium effect was tested across four mature dual-listings and did
+         not generalise — two well-powered pairs pointed in OPPOSITE directions.
+       * If `available` is false, state that the foreign leg was unavailable and
+         move on. Do NOT compute a premium yourself from prices in the report.
 
 7. INDICATOR CONFLICTS & RISKS
    - List any indicators that are giving opposing signals.
