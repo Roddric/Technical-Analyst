@@ -41,11 +41,25 @@ def _asof_align(target_index: pd.DatetimeIndex, foreign: pd.DataFrame,
 
 
 def _causal_zscore(s: pd.Series, window: int = XMKT_Z_WINDOW) -> pd.Series:
-    """Trailing-window z-score using only data up to each point; non-finite -> NaN."""
-    mean = s.rolling(window).mean()
-    std = s.rolling(window).std()
-    z = (s - mean) / std
-    return z.replace([np.inf, -np.inf], np.nan)
+    """Trailing-window z-score using only data up to each point; non-finite -> NaN.
+
+    Rolls on VALID OBSERVATIONS, not raw row positions. Two venues never share a
+    trading calendar, so a series indexed by one market's days has interior gaps
+    where the other was shut. pandas' `rolling(window)` needs `window` non-NaN
+    values within `window` ROWS, so one gap blanks the next `window` outputs —
+    with gaps every few weeks no window ever fills and the signal silently never
+    emits. Compacting first (then reindexing back) makes the window span the last
+    `window` OBSERVED values, which is the quantity the estimate actually needs.
+
+    Causal: only past observations enter. The window's calendar span becomes
+    slightly elastic when a gap is skipped, which is immaterial — the estimate
+    depends on having `window` observations, not on spanning exact calendar days.
+    """
+    obs = s.dropna()
+    mean = obs.rolling(window).mean()
+    std = obs.rolling(window).std()
+    z = (obs - mean) / std
+    return z.replace([np.inf, -np.inf], np.nan).reindex(s.index)
 
 
 def adr_overnight_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
@@ -72,19 +86,24 @@ def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
     legs, causal-z-scored. Same underlying, so no beta fit is needed (price beta
     = 1); the ADR-to-share count is handled by adr_ratio (e.g. 10 ADRs/share).
 
-    REGIME-GATED. The reversion premise needs two-way conversion to supply an
-    arbitrage force to parity; before that the premium is a one-way scarcity
-    premium with a different mean. Bars before `regime_start` are therefore
-    DROPPED before z-scoring, not masked after it — masking would still let
-    scarcity-premium values sit in the trailing mean/std of a post-conversion
-    bar. The tail stays NaN until enough post-regime history accumulates."""
+    OPTIONALLY REGIME-GATED, per pair. Where two-way conversion opened partway
+    through the sample, the earlier era is a one-way scarcity premium with a
+    different mean, so bars before `regime_start` are DROPPED before z-scoring
+    — not masked after it, which would still let scarcity-premium values sit in
+    the trailing mean/std of a post-conversion bar.
+
+    `regime_start=None` means NO SPLIT: the pair has had two-way conversion for
+    the whole sample (the normal case for a mature ADR like TSM). The date is a
+    property of the PAIR and lives in CROSS_MARKET_MAP — never a module-level
+    default, which would silently apply one pair's regime date to every other."""
     adr_close = _asof_align(target_df.index, adr_df[["close"]], strict_before=True)["close"]
     fx = _asof_align(target_df.index, fx_df[["close"]], strict_before=True)["close"]
     adr_krw = adr_close * fx * adr_ratio
     premium = adr_krw / target_df["close"] - 1.0
-    start = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE
-                         if regime_start is None else regime_start)
-    post = premium[pd.DatetimeIndex(premium.index) >= start]
+    if regime_start is None:
+        post = premium
+    else:
+        post = premium[pd.DatetimeIndex(premium.index) >= pd.Timestamp(regime_start)]
     z = _causal_zscore(post, window)
     return z.reindex(premium.index).rename("xmkt_adr_premium")
 
@@ -118,22 +137,128 @@ def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
             "regime_note": regime_note}
 
 
+def _etf_anchor_return(etf_index: pd.DatetimeIndex, und_df: pd.DataFrame,
+                       sub_df: pd.DataFrame | None = None,
+                       sub_fx_df: pd.DataFrame | None = None) -> pd.Series:
+    """Anchor return for each ETF bar: the underlying's SAME-DATE local return.
+
+    Causal by market hours, not by lag: Korea closes 15:30 KST, HK closes 16:00
+    HKT (= 15:00 KST +1h) — the Korea print is already public when HK marks. On
+    Korea holidays there is no same-date bar, so fall back to the substitute's
+    STRICTLY-BEFORE overnight return (which needs the causal as-of, having no
+    such intraday guarantee)."""
+    und_ret = und_df["close"].pct_change()
+    und_ret.index = pd.DatetimeIndex(und_ret.index).astype("datetime64[ns]")
+    idx = pd.DatetimeIndex(etf_index).astype("datetime64[ns]")
+    anchor = und_ret.reindex(idx)                    # NaN where Korea did not trade
+    if sub_df is not None and len(sub_df):
+        sub_ret = sub_df["close"].pct_change()
+        if sub_fx_df is not None and len(sub_fx_df):
+            # The substitute prints in USD, but the anchor must be a KRW move.
+            # A USD ADR return carries the FX move as well:
+            #     (1 + r_krw) = (1 + r_usd) * (1 + r_fx),  fx = KRW per USD
+            # so back the FX out instead of treating a USD return as a KRW one.
+            # Done on the SUBSTITUTE's own index so both legs are date-matched
+            # before the causal as-of onto the ETF calendar.
+            fx_on_sub = _asof_align(sub_df.index, sub_fx_df[["close"]],
+                                    strict_before=False)["close"]
+            sub_ret = (1.0 + sub_ret) * (1.0 + fx_on_sub.pct_change().values) - 1.0
+        anchor = anchor.fillna(
+            _asof_align(idx, sub_ret.to_frame("r"), strict_before=True)["r"])
+    return anchor
+
+
+def etf_divergence_signal(etf_df: pd.DataFrame, und_df: pd.DataFrame,
+                          sub_df: pd.DataFrame | None = None,
+                          sub_fx_df: pd.DataFrame | None = None,
+                          leverage: float = 2.0,
+                          window: int = XMKT_Z_WINDOW) -> pd.Series:
+    """Leveraged-ETF divergence: how far the 2x ETF moved beyond 2x its
+    underlying. Excess tends to revert as market-maker create/redeem arbitrage
+    re-couples the ETF to the underlying, so this is a mean-reversion signal on
+    the ETF's OWN forward return. Sign (expected negative — fade the
+    over-reaction) and weight are learned OOS, never hardcoded."""
+    etf_ret = etf_df["close"].pct_change()
+    etf_ret.index = pd.DatetimeIndex(etf_ret.index).astype("datetime64[ns]")
+    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df, sub_fx_df)
+    divergence = etf_ret - leverage * anchor
+    return _causal_zscore(divergence, window).rename("xmkt_etf_divergence")
+
+
+def etf_divergence_snapshot(etf_df: pd.DataFrame, und_df: pd.DataFrame,
+                            sub_df: pd.DataFrame | None = None,
+                            sub_fx_df: pd.DataFrame | None = None,
+                            leverage: float = 2.0) -> dict:
+    """Live descriptive read on the latest bar: is today's ETF move explained by
+    the underlying, or is it over/under-reacting? Descriptive only — it carries
+    no mechanical weight and is available long before the signal can emit."""
+    if etf_df is None or "close" not in etf_df or len(etf_df) < 2:
+        return {"available": False, "reason": "insufficient ETF history"}
+    etf_ret = etf_df["close"].pct_change()
+    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df, sub_fx_df)
+    e, a = float(etf_ret.iloc[-1]), float(anchor.iloc[-1])
+    if not np.isfinite([e, a]).all():
+        return {"available": False, "reason": "missing ETF or anchor return"}
+    expected = leverage * a
+    div = e - expected
+    read = ("over-reacting vs %gx" % leverage) if div > 0 else (
+           ("under-reacting vs %gx" % leverage) if div < 0 else "tracking %gx" % leverage)
+    return {"available": True, "etf_return_pct": round(100 * e, 2),
+            "anchor_return_pct": round(100 * a, 2), "leverage": leverage,
+            "expected_return_pct": round(100 * expected, 2),
+            "divergence_pct": round(100 * div, 2), "read": read,
+            "note": "descriptive only; the mechanical signal is gated on "
+                    "XMKT_MIN_HISTORY and may still be absent"}
+
+
+def _adr_candidates(target_df, cfg, loader) -> dict:
+    """Phase A shape: {"adr": ..., "fx": ...} — the ADR-vs-local pair."""
+    adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
+    if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
+        return {}
+    ratio = cfg.get("adr_ratio", 1.0)
+    return {
+        "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
+        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio,
+                                               regime_start=cfg.get("regime_start")),
+    }
+
+
+def _etf_candidates(target_df, cfg, loader) -> dict:
+    """Phase B shape: {"underlying": ..., "leverage": ...} — the leveraged ETF.
+    The substitute anchor is optional; without it, Korea holidays simply stay
+    NaN and are excluded by the history gate rather than guessed at."""
+    und_df = loader(cfg["underlying"])
+    if und_df is None or und_df.empty:
+        return {}
+    sub = cfg.get("substitute")
+    sub_df = loader(sub) if sub else None
+    if sub_df is not None and sub_df.empty:
+        sub_df = None
+    sub_fx = cfg.get("substitute_fx")
+    sub_fx_df = loader(sub_fx) if sub_fx else None
+    if sub_fx_df is not None and sub_fx_df.empty:
+        sub_fx_df = None
+    lev = cfg.get("leverage", 2.0)
+    return {"xmkt_etf_divergence": etf_divergence_signal(
+        target_df, und_df, sub_df, sub_fx_df, leverage=lev)}
+
+
 def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dict:
     """Load the configured foreign legs and return the cross-market signal series
-    for `asset`. Returns {} if unconfigured or data is missing/too short."""
+    for `asset`. Dispatches on the SHAPE of the config entry (ADR-shaped vs
+    ETF-shaped). Returns {} if unconfigured or data is missing/too short."""
     cfg = config.CROSS_MARKET_MAP.get(asset)
     if not cfg:
         return {}
     if target_df is None or target_df.empty:
         return {}
-    adr_df, fx_df = loader(cfg["adr"]), loader(cfg["fx"])
-    if adr_df is None or adr_df.empty or fx_df is None or fx_df.empty:
+    if "adr" in cfg:
+        candidates = _adr_candidates(target_df, cfg, loader)
+    elif "underlying" in cfg:
+        candidates = _etf_candidates(target_df, cfg, loader)
+    else:
         return {}
-    ratio = cfg.get("adr_ratio", 1.0)
-    candidates = {
-        "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
-        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
-    }
     # xmkt_adr_premium counts POST-REGIME bars only (pre-conversion history was
     # dropped upstream), so it answers a different evidence question than the
     # plain history gate and carries its own threshold.

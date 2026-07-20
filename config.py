@@ -17,16 +17,35 @@ XMKT_MIN_HISTORY = 150      # aligned finite bars required before a signal is em
 # prospectus). Formula: premium = adr_usd * fx * adr_ratio / local - 1 (scales the
 # ADR up to a full-share basis). NOTE: this is 10, NOT 0.1 — the ratio multiplies
 # the ADR side; "1 ADR = 1/10 share" encodes here as 10 ADRs-per-share.
-CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
-    "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0},
-}
-# Two-way ADR<->local conversion opens 2026-07-29. BEFORE it, the premium is a
-# ONE-WAY scarcity premium with no arbitrage force to parity, so
+# Phase B: 7709.HK is the HK-listed 2x-daily-leveraged ETF on 000660.KS. The
+# anchor is the PLAIN KRW return with NO FX term — settled empirically, not by
+# argument (regression on n=159: KRW anchor R2=0.933/beta=1.78 beats the
+# HKD-translated R2=0.920). `leverage` is the NOMINAL 2.0; the causal z-score
+# de-means the systematic 2-vs-1.78 tracking friction, so no rolling beta fit is
+# needed. `substitute` is the Korea-holiday fallback anchor.
+# Two-way ADR<->local conversion opens 2026-07-29 for SK Hynix. BEFORE it, the
+# premium is a ONE-WAY scarcity premium with no arbitrage force to parity, so
 # xmkt_adr_premium's mean-reversion premise does NOT hold yet. Do not pool
 # pre/post history in one window for IC testing — split on this date.
-# This date is the REGIME START: adr_premium_signal drops every bar before it
-# outright, so no scarcity-premium value can enter a post-conversion z-window.
 ADR_TWO_WAY_CONVERSION_DATE = "2026-07-29"
+# regime_start belongs to the PAIR, not the module: it marks where two-way
+# conversion began, and is None for any ADR that has had two-way conversion for
+# the whole sample (the normal, mature case). A module-level default would
+# silently apply SK Hynix's date to unrelated pairs and gate their entire
+# history away — which is indistinguishable from "no edge found".
+CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
+    "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0,
+                  "regime_start": ADR_TWO_WAY_CONVERSION_DATE},
+    # NOTE: TSM/2330.TW, TM/7203.T, NVO/NOVO-B.CO and SHEL/SHEL.L were configured
+    # here temporarily to test whether the premium effect generalises across
+    # mature dual-listings. It does NOT — see docs/cross-market-validation.md.
+    # They are deliberately NOT kept in production config; re-add them only to
+    # reproduce that study.
+    # substitute_fx backs the FX out of the USD-denominated substitute so the
+    # holiday anchor is a KRW move, not a USD one: (1+r_krw)=(1+r_usd)(1+r_fx).
+    "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY",
+                "substitute_fx": "KRW=X", "leverage": 2.0},
+}
 # Post-regime bars required before xmkt_adr_premium emits again. Same evidence
 # bar as XMKT_MIN_HISTORY, keyed to days-since-REGIME-start instead of
 # days-since-DATA-start; kept separate so the regime gate can be tuned without
