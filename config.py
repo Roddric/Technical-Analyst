@@ -23,17 +23,26 @@ XMKT_MIN_HISTORY = 150      # aligned finite bars required before a signal is em
 # HKD-translated R2=0.920). `leverage` is the NOMINAL 2.0; the causal z-score
 # de-means the systematic 2-vs-1.78 tracking friction, so no rolling beta fit is
 # needed. `substitute` is the Korea-holiday fallback anchor.
-CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
-    "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0},
-    "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY", "leverage": 2.0},
-}
-# Two-way ADR<->local conversion opens 2026-07-29. BEFORE it, the premium is a
-# ONE-WAY scarcity premium with no arbitrage force to parity, so
+# Two-way ADR<->local conversion opens 2026-07-29 for SK Hynix. BEFORE it, the
+# premium is a ONE-WAY scarcity premium with no arbitrage force to parity, so
 # xmkt_adr_premium's mean-reversion premise does NOT hold yet. Do not pool
 # pre/post history in one window for IC testing — split on this date.
-# This date is the REGIME START: adr_premium_signal drops every bar before it
-# outright, so no scarcity-premium value can enter a post-conversion z-window.
 ADR_TWO_WAY_CONVERSION_DATE = "2026-07-29"
+# regime_start belongs to the PAIR, not the module: it marks where two-way
+# conversion began, and is None for any ADR that has had two-way conversion for
+# the whole sample (the normal, mature case). A module-level default would
+# silently apply SK Hynix's date to unrelated pairs and gate their entire
+# history away — which is indistinguishable from "no edge found".
+CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
+    "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0,
+                  "regime_start": ADR_TWO_WAY_CONVERSION_DATE},
+    # TSMC: a MATURE dual-listing used to validate the METHOD, not to shortcut
+    # SK Hynix. 1 TSM ADR = 5 ordinary 2330.TW shares, so ADRs-per-local-share
+    # = 0.2. Two-way conversion has run normally for decades -> no regime split.
+    "2330.TW": {"adr": "TSM", "fx": "TWD=X", "adr_ratio": 0.2,
+                "regime_start": None},
+    "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY", "leverage": 2.0},
+}
 # Post-regime bars required before xmkt_adr_premium emits again. Same evidence
 # bar as XMKT_MIN_HISTORY, keyed to days-since-REGIME-start instead of
 # days-since-DATA-start; kept separate so the regime gate can be tuned without

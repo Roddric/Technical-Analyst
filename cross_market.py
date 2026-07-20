@@ -72,19 +72,24 @@ def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
     legs, causal-z-scored. Same underlying, so no beta fit is needed (price beta
     = 1); the ADR-to-share count is handled by adr_ratio (e.g. 10 ADRs/share).
 
-    REGIME-GATED. The reversion premise needs two-way conversion to supply an
-    arbitrage force to parity; before that the premium is a one-way scarcity
-    premium with a different mean. Bars before `regime_start` are therefore
-    DROPPED before z-scoring, not masked after it — masking would still let
-    scarcity-premium values sit in the trailing mean/std of a post-conversion
-    bar. The tail stays NaN until enough post-regime history accumulates."""
+    OPTIONALLY REGIME-GATED, per pair. Where two-way conversion opened partway
+    through the sample, the earlier era is a one-way scarcity premium with a
+    different mean, so bars before `regime_start` are DROPPED before z-scoring
+    — not masked after it, which would still let scarcity-premium values sit in
+    the trailing mean/std of a post-conversion bar.
+
+    `regime_start=None` means NO SPLIT: the pair has had two-way conversion for
+    the whole sample (the normal case for a mature ADR like TSM). The date is a
+    property of the PAIR and lives in CROSS_MARKET_MAP — never a module-level
+    default, which would silently apply one pair's regime date to every other."""
     adr_close = _asof_align(target_df.index, adr_df[["close"]], strict_before=True)["close"]
     fx = _asof_align(target_df.index, fx_df[["close"]], strict_before=True)["close"]
     adr_krw = adr_close * fx * adr_ratio
     premium = adr_krw / target_df["close"] - 1.0
-    start = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE
-                         if regime_start is None else regime_start)
-    post = premium[pd.DatetimeIndex(premium.index) >= start]
+    if regime_start is None:
+        post = premium
+    else:
+        post = premium[pd.DatetimeIndex(premium.index) >= pd.Timestamp(regime_start)]
     z = _causal_zscore(post, window)
     return z.reindex(premium.index).rename("xmkt_adr_premium")
 
@@ -186,7 +191,8 @@ def _adr_candidates(target_df, cfg, loader) -> dict:
     ratio = cfg.get("adr_ratio", 1.0)
     return {
         "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
-        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
+        "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio,
+                                               regime_start=cfg.get("regime_start")),
     }
 
 
