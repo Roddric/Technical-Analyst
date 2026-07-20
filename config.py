@@ -41,6 +41,17 @@ CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
     # = 0.2. Two-way conversion has run normally for decades -> no regime split.
     "2330.TW": {"adr": "TSM", "fx": "TWD=X", "adr_ratio": 0.2,
                 "regime_start": None},
+    # Mature dual-listings, deliberately spread across sector/region/regime so a
+    # shared result cannot be an artifact of picking similar names. Ratios are
+    # prospectus facts, each confirmed against the implied par ratio (the ratio
+    # that would put today's premium at 0) — a units check, not a signal fit:
+    #   7203.T    assumed 0.10  implied 0.1005    (1 TM ADR = 10 ordinary)
+    #   NOVO-B.CO assumed 1.00  implied 1.0037    (1 NVO ADR = 1 ordinary)
+    #   SHEL.L    assumed 50.0  implied 49.889    (1 SHEL ADR = 2 ordinary, and
+    #                                              the LSE quotes in PENCE: 0.5*100)
+    "7203.T": {"adr": "TM", "fx": "JPY=X", "adr_ratio": 0.1, "regime_start": None},
+    "NOVO-B.CO": {"adr": "NVO", "fx": "DKK=X", "adr_ratio": 1.0, "regime_start": None},
+    "SHEL.L": {"adr": "SHEL", "fx": "GBP=X", "adr_ratio": 50.0, "regime_start": None},
     "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY", "leverage": 2.0},
 }
 # Post-regime bars required before xmkt_adr_premium emits again. Same evidence
