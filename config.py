@@ -52,7 +52,10 @@ CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
     "7203.T": {"adr": "TM", "fx": "JPY=X", "adr_ratio": 0.1, "regime_start": None},
     "NOVO-B.CO": {"adr": "NVO", "fx": "DKK=X", "adr_ratio": 1.0, "regime_start": None},
     "SHEL.L": {"adr": "SHEL", "fx": "GBP=X", "adr_ratio": 50.0, "regime_start": None},
-    "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY", "leverage": 2.0},
+    # substitute_fx backs the FX out of the USD-denominated substitute so the
+    # holiday anchor is a KRW move, not a USD one: (1+r_krw)=(1+r_usd)(1+r_fx).
+    "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY",
+                "substitute_fx": "KRW=X", "leverage": 2.0},
 }
 # Post-regime bars required before xmkt_adr_premium emits again. Same evidence
 # bar as XMKT_MIN_HISTORY, keyed to days-since-REGIME-start instead of

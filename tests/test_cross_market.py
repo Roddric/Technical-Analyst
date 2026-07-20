@@ -455,3 +455,60 @@ def test_etf_divergence_survives_real_korea_holiday_gaps():
     sig = cross_market.etf_divergence_signal(etf, und, None, leverage=2.0)
     assert sig.notna().sum() > 0                       # was 0 before the fix
     assert sig.notna().sum() >= len(etf_idx) - config.XMKT_Z_WINDOW - len(gaps) - 5
+
+
+# --- substitute-anchor FX back-out (no real occurrence yet: SKHY postdates
+# every Korea holiday in the sample, so this path is UNTESTED by live data) ---
+
+def test_substitute_anchor_backs_fx_out_of_usd_return():
+    """SKHY prints in USD; the anchor must be a KRW move. With fx = KRW per USD,
+    (1+r_krw) = (1+r_usd)(1+r_fx). Hand-computable: r_usd=+10%, r_fx=+1%
+    -> r_krw = 1.10*1.01 - 1 = 0.111 exactly."""
+    etf_idx = pd.to_datetime(["2026-08-03", "2026-08-04", "2026-08-05"])
+    # Korea shut on 08-04 (fabricated holiday); trades either side.
+    und = _frame(["2026-08-03", "2026-08-05"], [200000.0, 202000.0])
+    # SKHY's session on date D closes AFTER HK's, so the freshest SKHY return
+    # available to an HK bar on 08-04 is the one dated 08-03 (strictly before).
+    sub = _frame(["2026-08-02", "2026-08-03"], [100.0, 110.0])   # r_usd = +0.10
+    fx = _frame(["2026-08-02", "2026-08-03"], [1400.0, 1414.0])  # r_fx  = +0.01
+
+    anchor = cross_market._etf_anchor_return(etf_idx, und, sub, fx)
+    assert anchor.iloc[1] == pytest.approx(1.10 * 1.01 - 1.0)      # 0.111
+    # Positive control: without the FX leg the same path yields the RAW USD
+    # return, which is the wrong number by exactly the FX move.
+    raw = cross_market._etf_anchor_return(etf_idx, und, sub, None)
+    assert raw.iloc[1] == pytest.approx(0.10)
+    assert raw.iloc[1] != pytest.approx(anchor.iloc[1])
+
+
+def test_substitute_fx_backout_handles_negative_fx_move():
+    """A weakening KRW must reduce, not inflate, the implied KRW return."""
+    etf_idx = pd.to_datetime(["2026-08-03", "2026-08-04"])
+    und = _frame(["2026-08-03"], [200000.0])
+    sub = _frame(["2026-08-02", "2026-08-03"], [100.0, 105.0])     # r_usd = +5%
+    fx = _frame(["2026-08-02", "2026-08-03"], [1400.0, 1386.0])    # r_fx  = -1%
+    anchor = cross_market._etf_anchor_return(etf_idx, und, sub, fx)
+    assert anchor.iloc[1] == pytest.approx(1.05 * 0.99 - 1.0)      # 0.0395
+
+
+def test_substitute_fx_absent_falls_back_to_raw_usd_return():
+    """substitute_fx is optional; without it behaviour is unchanged (raw USD)."""
+    etf_idx = pd.to_datetime(["2026-08-03", "2026-08-04"])
+    und = _frame(["2026-08-03"], [200000.0])
+    sub = _frame(["2026-08-02", "2026-08-03"], [100.0, 110.0])
+    assert cross_market._etf_anchor_return(etf_idx, und, sub, None).iloc[1] == \
+        pytest.approx(0.10)
+
+
+def test_build_signals_etf_passes_substitute_fx_from_config():
+    """The 7709.HK entry must actually wire substitute_fx through, or the
+    back-out silently never runs in production."""
+    assert config.CROSS_MARKET_MAP["7709.HK"]["substitute_fx"] == "KRW=X"
+    etf, und, sub = _etf_legs()
+    fxl = _frame(pd.bdate_range("2025-01-01", periods=300),
+                 np.linspace(1400.0, 1450.0, 300))
+    seen = []
+    loader = lambda t: (seen.append(t) or
+                        {"000660.KS": und, "SKHY": sub, "KRW=X": fxl}.get(t))
+    cross_market.build_signals(etf, "7709.HK", loader=loader)
+    assert "KRW=X" in seen

@@ -138,7 +138,8 @@ def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
 
 
 def _etf_anchor_return(etf_index: pd.DatetimeIndex, und_df: pd.DataFrame,
-                       sub_df: pd.DataFrame | None) -> pd.Series:
+                       sub_df: pd.DataFrame | None = None,
+                       sub_fx_df: pd.DataFrame | None = None) -> pd.Series:
     """Anchor return for each ETF bar: the underlying's SAME-DATE local return.
 
     Causal by market hours, not by lag: Korea closes 15:30 KST, HK closes 16:00
@@ -151,13 +152,25 @@ def _etf_anchor_return(etf_index: pd.DatetimeIndex, und_df: pd.DataFrame,
     idx = pd.DatetimeIndex(etf_index).astype("datetime64[ns]")
     anchor = und_ret.reindex(idx)                    # NaN where Korea did not trade
     if sub_df is not None and len(sub_df):
-        sub_ret = sub_df["close"].pct_change().to_frame("r")
-        anchor = anchor.fillna(_asof_align(idx, sub_ret, strict_before=True)["r"])
+        sub_ret = sub_df["close"].pct_change()
+        if sub_fx_df is not None and len(sub_fx_df):
+            # The substitute prints in USD, but the anchor must be a KRW move.
+            # A USD ADR return carries the FX move as well:
+            #     (1 + r_krw) = (1 + r_usd) * (1 + r_fx),  fx = KRW per USD
+            # so back the FX out instead of treating a USD return as a KRW one.
+            # Done on the SUBSTITUTE's own index so both legs are date-matched
+            # before the causal as-of onto the ETF calendar.
+            fx_on_sub = _asof_align(sub_df.index, sub_fx_df[["close"]],
+                                    strict_before=False)["close"]
+            sub_ret = (1.0 + sub_ret) * (1.0 + fx_on_sub.pct_change().values) - 1.0
+        anchor = anchor.fillna(
+            _asof_align(idx, sub_ret.to_frame("r"), strict_before=True)["r"])
     return anchor
 
 
 def etf_divergence_signal(etf_df: pd.DataFrame, und_df: pd.DataFrame,
                           sub_df: pd.DataFrame | None = None,
+                          sub_fx_df: pd.DataFrame | None = None,
                           leverage: float = 2.0,
                           window: int = XMKT_Z_WINDOW) -> pd.Series:
     """Leveraged-ETF divergence: how far the 2x ETF moved beyond 2x its
@@ -167,13 +180,14 @@ def etf_divergence_signal(etf_df: pd.DataFrame, und_df: pd.DataFrame,
     over-reaction) and weight are learned OOS, never hardcoded."""
     etf_ret = etf_df["close"].pct_change()
     etf_ret.index = pd.DatetimeIndex(etf_ret.index).astype("datetime64[ns]")
-    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df)
+    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df, sub_fx_df)
     divergence = etf_ret - leverage * anchor
     return _causal_zscore(divergence, window).rename("xmkt_etf_divergence")
 
 
 def etf_divergence_snapshot(etf_df: pd.DataFrame, und_df: pd.DataFrame,
                             sub_df: pd.DataFrame | None = None,
+                            sub_fx_df: pd.DataFrame | None = None,
                             leverage: float = 2.0) -> dict:
     """Live descriptive read on the latest bar: is today's ETF move explained by
     the underlying, or is it over/under-reacting? Descriptive only — it carries
@@ -181,7 +195,7 @@ def etf_divergence_snapshot(etf_df: pd.DataFrame, und_df: pd.DataFrame,
     if etf_df is None or "close" not in etf_df or len(etf_df) < 2:
         return {"available": False, "reason": "insufficient ETF history"}
     etf_ret = etf_df["close"].pct_change()
-    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df)
+    anchor = _etf_anchor_return(etf_df.index, und_df, sub_df, sub_fx_df)
     e, a = float(etf_ret.iloc[-1]), float(anchor.iloc[-1])
     if not np.isfinite([e, a]).all():
         return {"available": False, "reason": "missing ETF or anchor return"}
@@ -221,8 +235,13 @@ def _etf_candidates(target_df, cfg, loader) -> dict:
     sub_df = loader(sub) if sub else None
     if sub_df is not None and sub_df.empty:
         sub_df = None
+    sub_fx = cfg.get("substitute_fx")
+    sub_fx_df = loader(sub_fx) if sub_fx else None
+    if sub_fx_df is not None and sub_fx_df.empty:
+        sub_fx_df = None
     lev = cfg.get("leverage", 2.0)
-    return {"xmkt_etf_divergence": etf_divergence_signal(target_df, und_df, sub_df, lev)}
+    return {"xmkt_etf_divergence": etf_divergence_signal(
+        target_df, und_df, sub_df, sub_fx_df, leverage=lev)}
 
 
 def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dict:
