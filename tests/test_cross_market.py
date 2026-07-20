@@ -401,3 +401,57 @@ def test_regime_start_is_per_pair_not_global():
     loader2 = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
     assert "xmkt_adr_premium" not in cross_market.build_signals(
         target, "000660.KS", loader=loader2)
+
+
+# --- multi-calendar gaps: the bug synthetic aligned fixtures could not catch ---
+
+# Real 2025-2026 dates where 7709.HK traded and 000660.KS did not (Korea
+# holidays), taken from live data. Gaps recur every ~6-8 weeks, which caps the
+# longest unbroken calendar run below the 60-bar window.
+KOREA_HOLIDAYS_HK_OPEN = ["2025-12-31", "2026-02-16", "2026-03-02",
+                          "2026-05-05", "2026-06-03"]
+
+
+def test_causal_zscore_rolls_on_observations_not_rows():
+    """A single interior NaN must not blank the next `window` outputs."""
+    s = pd.Series(np.arange(1, 31, dtype=float))
+    s.iloc[10] = np.nan                       # one gap, mid-series
+    z = cross_market._causal_zscore(s, window=5)
+    assert np.isnan(z.iloc[10])               # the gap itself stays NaN
+    # Row-position rolling would blank indices 11..14; observation rolling does not.
+    assert np.isfinite(z.iloc[11])
+    # value matches a z-score over the last 5 OBSERVED points (9,10,12,13 -> and 11 is idx10=NaN)
+    obs = s.dropna()
+    exp = (obs - obs.rolling(5).mean()) / obs.rolling(5).std()
+    assert z.iloc[11] == pytest.approx(exp.loc[11])
+
+
+def test_etf_divergence_survives_real_korea_holiday_gaps():
+    """Regression for the real failure: with genuine Korea-holiday gaps the
+    longest unbroken calendar run is < XMKT_Z_WINDOW, so row-position rolling
+    produced ZERO finite values and build_signals returned {} — indistinguishable
+    from 'not enough history yet'."""
+    etf_idx = pd.bdate_range("2025-10-16", "2026-07-16")
+    gaps = pd.to_datetime(KOREA_HOLIDAYS_HK_OPEN)
+    kor_idx = etf_idx.difference(gaps)                 # Korea shut on those dates
+    assert len(gaps.intersection(etf_idx)) == len(gaps)  # gaps really are HK bars
+
+    rng = np.random.default_rng(0)
+    etf = _frame(etf_idx, 40 * np.cumprod(1 + rng.normal(0, 0.02, len(etf_idx))))
+    und = _frame(kor_idx, 200000 * np.cumprod(1 + rng.normal(0, 0.01, len(kor_idx))))
+
+    anchor = cross_market._etf_anchor_return(etf_idx, und, None)
+    assert anchor.isna().sum() >= len(gaps)            # gaps are genuinely NaN
+
+    # longest unbroken run must be under the window, or the fixture is not
+    # reproducing the real condition.
+    finite = anchor.notna().to_numpy()
+    best = run = 0
+    for v in finite:
+        run = run + 1 if v else 0
+        best = max(best, run)
+    assert best < config.XMKT_Z_WINDOW
+
+    sig = cross_market.etf_divergence_signal(etf, und, None, leverage=2.0)
+    assert sig.notna().sum() > 0                       # was 0 before the fix
+    assert sig.notna().sum() >= len(etf_idx) - config.XMKT_Z_WINDOW - len(gaps) - 5

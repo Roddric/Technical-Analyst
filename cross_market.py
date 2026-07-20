@@ -41,11 +41,25 @@ def _asof_align(target_index: pd.DatetimeIndex, foreign: pd.DataFrame,
 
 
 def _causal_zscore(s: pd.Series, window: int = XMKT_Z_WINDOW) -> pd.Series:
-    """Trailing-window z-score using only data up to each point; non-finite -> NaN."""
-    mean = s.rolling(window).mean()
-    std = s.rolling(window).std()
-    z = (s - mean) / std
-    return z.replace([np.inf, -np.inf], np.nan)
+    """Trailing-window z-score using only data up to each point; non-finite -> NaN.
+
+    Rolls on VALID OBSERVATIONS, not raw row positions. Two venues never share a
+    trading calendar, so a series indexed by one market's days has interior gaps
+    where the other was shut. pandas' `rolling(window)` needs `window` non-NaN
+    values within `window` ROWS, so one gap blanks the next `window` outputs —
+    with gaps every few weeks no window ever fills and the signal silently never
+    emits. Compacting first (then reindexing back) makes the window span the last
+    `window` OBSERVED values, which is the quantity the estimate actually needs.
+
+    Causal: only past observations enter. The window's calendar span becomes
+    slightly elastic when a gap is skipped, which is immaterial — the estimate
+    depends on having `window` observations, not on spanning exact calendar days.
+    """
+    obs = s.dropna()
+    mean = obs.rolling(window).mean()
+    std = obs.rolling(window).std()
+    z = (obs - mean) / std
+    return z.replace([np.inf, -np.inf], np.nan).reindex(s.index)
 
 
 def adr_overnight_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
