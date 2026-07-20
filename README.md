@@ -34,6 +34,7 @@ volatility bollinger bands + percent_b + squeeze, atr + pct + expected range
 volume     obv trend/strength + price confirmation + divergence
 levels     support / resistance + distance% + risk_reward
 council    the mechanical evidence-weighted verdict (read the warning below)
+cross_market  dual-listing read — ONLY for configured tickers (see below)
 ```
 
 Then write the report following `prompt.py` (your analyst persona and the exact
@@ -61,6 +62,37 @@ error and not a tool failure**.
 This system is built to *not* manufacture confidence it hasn't earned. Preserve
 that at the last mile: report what the numbers say, including when they say
 nothing.
+
+## Cross-market linkage (only for configured dual-listings)
+
+Some tickers trade in two venues at once. For those, `compute_indicators` adds a
+`cross_market` block. Configured today (`config.CROSS_MARKET_MAP`):
+
+| Ticker | What it reads |
+|---|---|
+| `000660.KS` | SK Hynix local vs its US ADR `SKHY` — premium %, `zone` (rich / cheap / within_band), and the ADR conversion regime |
+| `7709.HK` | The HK-listed **2× leveraged ETF** on SK Hynix vs its underlying — is today's ETF move over- or under-reacting relative to 2× the underlying? |
+
+For every other ticker the key is simply absent. That is normal, not an error.
+
+**Read `cross_market` as description, not as a signal.** It reports what the two
+venues are doing right now. It is *not* the mechanical verdict — `council` is.
+The underlying mechanical cross-market signals only reach the council once they
+clear their history and regime gates, and **as of now both are still gated**
+(the 7709.HK divergence needs ~150 observations and has ~117; the SK Hynix ADR
+premium waits on post-conversion history from 2026-07-29).
+
+Two facts worth stating plainly, because they are easy to get wrong:
+
+- **Before 2026-07-29, SK Hynix's ADR premium is a one-way scarcity premium** —
+  there is no arbitrage force pulling it to parity, so a "rich" reading does
+  **not** mean "will converge". The block says so in its `regime_note`; repeat
+  that caveat rather than reading it as a mean-reverting spread.
+- **The premium effect does not generalise across dual-listings.** Tested on
+  four mature pairs (TSMC, Toyota, Novo Nordisk, Shell): 2/4 positive, i.e.
+  chance, with two well-powered pairs significant in *opposite* directions. So
+  never infer SK Hynix's direction from another listing's behaviour. Full
+  method and results: `docs/cross-market-validation.md`.
 
 ## Gate verdict (context for the council numbers)
 

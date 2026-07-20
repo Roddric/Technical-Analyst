@@ -30,6 +30,9 @@ Expect one JSON object with keys `overview, trend, momentum, volatility, volume,
 levels, support_resistance, fibonacci, council` and no traceback. If that works,
 the engine is ready.
 
+A `cross_market` key also appears, but **only** for configured dual-listed
+tickers (`000660.KS`, `7709.HK`). Its absence on every other ticker is normal.
+
 ---
 
 ## Step 2 — Load the system prompt into OpenClaw
@@ -44,6 +47,31 @@ Paste that as OpenClaw's system prompt (or point the bot's config at it). This i
 what defines the 8-section report, the 5-step workflow, and the OPERATIONAL
 ACTIONS (plan / trade-log / watchlist). When you change behavior, you change
 `prompt.py` — nowhere else.
+
+### The report MUST follow prompt.py's structure — say this to the bot explicitly
+
+This is the single most common thing to get wrong, because a chat model will
+happily produce a fluent, well-written summary in its own shape. That is a
+regression, not a style choice: the structure is what makes reports comparable
+across tickers and across time. Tell the bot, in these words:
+
+> Every analysis you produce must follow the report structure defined in
+> `prompt.py` exactly — all 8 sections, in this order, with their headings:
+> 1. STOCK OVERVIEW · 2. TREND ANALYSIS · 3. MOMENTUM · 4. VOLATILITY ·
+> 5. VOLUME · 6. KEY LEVELS · 7. INDICATOR CONFLICTS & RISKS · 8. SUMMARY & BIAS
+> Do not merge, reorder, rename, or skip sections. If a section's data is
+> unavailable, keep the heading and state that it was not computable. Do not
+> substitute your own summary format, however good it looks.
+
+The section list is not decoration — each one has required content in
+`prompt.py` (e.g. §3 must state whether RSI and MACD agree *or conflict* and
+explain the implication either way; §7 must surface conflicts rather than
+resolve them; §8 must reconcile explicitly with `council.direction`). If the bot
+starts dropping §7 or folding it into §8, that is the failure mode to watch for
+— conflicts are the first thing a fluent summary quietly smooths away.
+
+Re-paste the system prompt whenever `prompt.py` changes. If the bot's reports
+drift in shape over a long session, re-pasting is the fix.
 
 ---
 
@@ -102,6 +130,38 @@ When the owner asks the bot to analyze `<TICKER>`:
    bullish+confident**: alert the owner at the top of the response, run step 3 for
    it (make + upload the plan), and remove it from the watchlist. Tickers still
    not qualifying stay on the list silently.
+
+---
+
+## Step 6 — Dual-listed tickers (`000660.KS`, `7709.HK`)
+
+Only these two carry a `cross_market` block. When present, fold it into **§6 KEY
+LEVELS** as context, and mention it in **§8** only if it changes nothing about
+the bias — because it is descriptive, not a signal.
+
+| Ticker | Block says |
+|---|---|
+| `000660.KS` | SK Hynix local vs US ADR `SKHY`: `premium_pct`, `zone`, `arbitrage_regime`, `regime_note` |
+| `7709.HK` | 2× leveraged ETF vs its underlying: `etf_return_pct`, `anchor_return_pct`, `expected_return_pct`, `divergence_pct`, `read` |
+
+**Three rules the bot must not break here:**
+
+1. **`cross_market` is descriptive; `council` is the verdict.** A rich premium or
+   an over-reacting ETF is an observation, never a trade signal on its own. The
+   mechanical cross-market signals only reach `council` after clearing their
+   gates, and **both are still gated today** — so anything you say from this
+   block is colour, not evidence.
+2. **Before 2026-07-29, do not call SK Hynix's premium "mean-reverting."** Until
+   two-way conversion opens there is no arbitrage force to parity — it is a
+   one-way scarcity premium. Quote the block's own `regime_note`. Saying "the
+   premium is rich, so it should converge" is wrong in this window.
+3. **Never infer one listing's direction from another's.** Tested across four
+   mature dual-listings, the premium effect did not generalise — two well-powered
+   pairs pointed in opposite directions. Do not reason "TSMC's ADR behaves like
+   X, so SK Hynix will too." See `docs/cross-market-validation.md`.
+
+If `cross_market.available` is `false`, say the foreign leg was unavailable and
+move on. Do not estimate the premium yourself from prices in the report.
 
 ---
 
