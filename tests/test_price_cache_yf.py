@@ -43,3 +43,27 @@ def test_fetch_yf_fills_missing_volume_for_fx(monkeypatch):
 def test_fetch_yf_empty_returns_none(monkeypatch):
     monkeypatch.setattr("yfinance.download", lambda *a, **k: pd.DataFrame())
     assert price_cache._fetch_yf("NOPE") is None
+
+
+def test_fetch_yf_falls_back_when_max_period_returns_empty(monkeypatch):
+    """Yahoo returns an EMPTY frame (not an error) for some live symbols on
+    period='max' — e.g. 7203.T. Without a bounded-window retry a tradeable
+    symbol looks delisted, which downstream cannot distinguish from 'no data'."""
+    idx = pd.date_range("2026-07-10", periods=2)
+    good = pd.DataFrame({"Open": [1.0, 2.0], "High": [1.0, 2.0], "Low": [1.0, 2.0],
+                         "Close": [10.0, 20.0], "Volume": [1, 2]}, index=idx)
+    seen = []
+
+    def fake_download(tkr, period=None, **k):
+        seen.append(period)
+        return pd.DataFrame() if period == "max" else good
+
+    monkeypatch.setattr("yfinance.download", fake_download)
+    out = price_cache._fetch_yf("7203.T")
+    assert seen == ["max", "10y"]                    # tried max first, then fell back
+    assert out is not None and float(out["close"].iloc[-1]) == 20.0
+
+
+def test_fetch_yf_empty_on_both_attempts_returns_none(monkeypatch):
+    monkeypatch.setattr("yfinance.download", lambda *a, **k: pd.DataFrame())
+    assert price_cache._fetch_yf("DELISTED") is None

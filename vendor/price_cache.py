@@ -86,6 +86,12 @@ def _fetch_yf(tkr: str) -> pd.DataFrame | None:
     try:
         import yfinance as yf
         df = yf.download(tkr, period="max", auto_adjust=True, progress=False)
+        if df is None or len(df) == 0:
+            # Yahoo returns an EMPTY frame — not an error — for some live symbols
+            # on period="max" (e.g. 7203.T), while a bounded window succeeds.
+            # Without this fallback a tradeable symbol is indistinguishable from a
+            # delisted one downstream, and the pair is dropped silently.
+            df = yf.download(tkr, period="10y", auto_adjust=True, progress=False)
     except Exception:  # noqa: BLE001 — any fetch/parse error is a miss
         return None
     if df is None or len(df) == 0:
