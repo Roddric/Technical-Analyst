@@ -24,7 +24,15 @@ CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
 # ONE-WAY scarcity premium with no arbitrage force to parity, so
 # xmkt_adr_premium's mean-reversion premise does NOT hold yet. Do not pool
 # pre/post history in one window for IC testing — split on this date.
+# This date is the REGIME START: adr_premium_signal drops every bar before it
+# outright, so no scarcity-premium value can enter a post-conversion z-window.
 ADR_TWO_WAY_CONVERSION_DATE = "2026-07-29"
+# Post-regime bars required before xmkt_adr_premium emits again. Same evidence
+# bar as XMKT_MIN_HISTORY, keyed to days-since-REGIME-start instead of
+# days-since-DATA-start; kept separate so the regime gate can be tuned without
+# touching the history gate. Until it is met the signal is simply absent —
+# honest emptiness, not a contaminated number.
+XMKT_REGIME_MIN_BARS = XMKT_MIN_HISTORY
 
 # Sets / decorrelation
 N_PERSONALITIES = 3        # legacy round-robin roster size (superseded by selection)

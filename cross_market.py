@@ -66,15 +66,27 @@ def _last_finite(df: pd.DataFrame) -> float:
 
 def adr_premium_signal(target_df: pd.DataFrame, adr_df: pd.DataFrame,
                        fx_df: pd.DataFrame, adr_ratio: float = 1.0,
-                       window: int = XMKT_Z_WINDOW) -> pd.Series:
+                       window: int = XMKT_Z_WINDOW,
+                       regime_start=None) -> pd.Series:
     """Premium reversion: (ADR-in-KRW / local) - 1, on causally-aligned foreign
     legs, causal-z-scored. Same underlying, so no beta fit is needed (price beta
-    = 1); the ADR-to-share count is handled by adr_ratio (e.g. 10 ADRs/share)."""
+    = 1); the ADR-to-share count is handled by adr_ratio (e.g. 10 ADRs/share).
+
+    REGIME-GATED. The reversion premise needs two-way conversion to supply an
+    arbitrage force to parity; before that the premium is a one-way scarcity
+    premium with a different mean. Bars before `regime_start` are therefore
+    DROPPED before z-scoring, not masked after it — masking would still let
+    scarcity-premium values sit in the trailing mean/std of a post-conversion
+    bar. The tail stays NaN until enough post-regime history accumulates."""
     adr_close = _asof_align(target_df.index, adr_df[["close"]], strict_before=True)["close"]
     fx = _asof_align(target_df.index, fx_df[["close"]], strict_before=True)["close"]
     adr_krw = adr_close * fx * adr_ratio
     premium = adr_krw / target_df["close"] - 1.0
-    return _causal_zscore(premium, window).rename("xmkt_adr_premium")
+    start = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE
+                         if regime_start is None else regime_start)
+    post = premium[pd.DatetimeIndex(premium.index) >= start]
+    z = _causal_zscore(post, window)
+    return z.reindex(premium.index).rename("xmkt_adr_premium")
 
 
 def adr_premium_snapshot(target_df: pd.DataFrame, adr_df: pd.DataFrame,
@@ -122,5 +134,9 @@ def build_signals(target_df: pd.DataFrame, asset: str, loader=load_asset) -> dic
         "xmkt_adr_overnight": adr_overnight_signal(target_df, adr_df),
         "xmkt_adr_premium": adr_premium_signal(target_df, adr_df, fx_df, ratio),
     }
+    # xmkt_adr_premium counts POST-REGIME bars only (pre-conversion history was
+    # dropped upstream), so it answers a different evidence question than the
+    # plain history gate and carries its own threshold.
+    min_bars = {"xmkt_adr_premium": config.XMKT_REGIME_MIN_BARS}
     return {name: s for name, s in candidates.items()
-            if s.notna().sum() >= XMKT_MIN_HISTORY}
+            if s.notna().sum() >= min_bars.get(name, XMKT_MIN_HISTORY)}

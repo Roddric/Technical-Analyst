@@ -107,14 +107,19 @@ def test_adr_premium_signal_is_series_aligned_to_target():
     target = _frame(dates, np.linspace(200000, 230000, n))
     adr = _frame(dates, np.linspace(140, 155, n))
     fx = _frame(dates, np.full(n, 1480.0))
-    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=20)
+    # regime_start before the fixture so this exercises ALIGNMENT alone; the
+    # regime gate itself is covered by the tests below.
+    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=20,
+                                          regime_start="2020-01-01")
     assert sig.name == "xmkt_adr_premium"
     assert list(sig.index) == list(target.index)
     assert np.isfinite(sig.iloc[-1])           # enough history -> finite tail
 
 
-def _long_legs(n=300):
-    dates = pd.bdate_range("2020-01-01", periods=n)
+# Post-conversion by default: the premium signal only has a defined mean-reversion
+# premise after ADR_TWO_WAY_CONVERSION_DATE, so build_signals fixtures live there.
+def _long_legs(n=300, start="2026-08-03"):
+    dates = pd.bdate_range(start, periods=n)
     target = _frame(dates, np.linspace(200000, 230000, n))
     adr = _frame(dates, np.linspace(140, 155, n))
     fx = _frame(dates, np.full(n, 1480.0))
@@ -213,3 +218,52 @@ def test_asof_align_handles_mixed_datetime_resolution():
 
 def test_build_signals_none_target_is_empty():
     assert cross_market.build_signals(None, "000660.KS", loader=lambda t: _frame(["2021-01-01"], [1])) == {}
+
+
+# --- regime gate: the premium's reversion premise starts at two-way conversion ---
+
+def _pre_post_legs(n_pre=40, n_post=40):
+    """Legs straddling ADR_TWO_WAY_CONVERSION_DATE, with a deliberately different
+    premium level on each side (~+50% pre, ~0% post) so any pre-regime value that
+    leaked into a post-regime z-window would visibly move the result."""
+    pre = pd.bdate_range("2026-05-01", periods=n_pre)      # before 2026-07-29
+    post = pd.bdate_range("2026-08-03", periods=n_post)    # after
+    dates = pre.append(post)
+    target = _frame(dates, np.full(len(dates), 100_000.0))
+    adr_px = np.concatenate([150_000 + np.arange(n_pre) * 10.0,      # ~+50% premium
+                             100_000 + np.arange(n_post) * 10.0])    # ~0% premium
+    adr = _frame(dates, adr_px)
+    fx = _frame(dates, np.ones(len(dates)))
+    return target, adr, fx
+
+
+def test_adr_premium_signal_is_absent_before_conversion():
+    target, adr, fx = _pre_post_legs()
+    sig = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=5)
+    conv = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE)
+    assert list(sig.index) == list(target.index)          # still target-aligned
+    assert sig[sig.index < conv].isna().all()             # one-way era: no signal at all
+    assert np.isfinite(sig[sig.index >= conv]).any()      # post-conversion: emits
+
+
+def test_adr_premium_zscore_excludes_pre_regime_history():
+    """The load-bearing one: pre-conversion premium must never enter a
+    post-conversion trailing mean/std. Dropping pre-regime bars makes the
+    post-regime series identical to one computed from post-regime data alone;
+    merely MASKING after z-scoring would not."""
+    target, adr, fx = _pre_post_legs()
+    conv = pd.Timestamp(config.ADR_TWO_WAY_CONVERSION_DATE)
+    full = cross_market.adr_premium_signal(target, adr, fx, adr_ratio=1.0, window=5)
+    post_only = cross_market.adr_premium_signal(
+        target[target.index >= conv], adr, fx, adr_ratio=1.0, window=5)
+    pd.testing.assert_series_equal(full[full.index >= conv], post_only)
+
+
+def test_build_signals_drops_premium_when_regime_history_short():
+    """Asymmetry: plenty of DATA history, but little REGIME history. The
+    overnight signal (regime-independent) survives; the premium does not."""
+    target, adr, fx = _long_legs(n=300, start="2026-01-01")   # conversion mid-sample
+    loader = lambda t: {"SKHY": adr, "KRW=X": fx}.get(t)
+    sigs = cross_market.build_signals(target, "000660.KS", loader=loader)
+    assert "xmkt_adr_overnight" in sigs                       # clears XMKT_MIN_HISTORY
+    assert "xmkt_adr_premium" not in sigs                     # fails XMKT_REGIME_MIN_BARS
