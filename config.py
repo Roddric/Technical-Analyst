@@ -36,22 +36,11 @@ ADR_TWO_WAY_CONVERSION_DATE = "2026-07-29"
 CROSS_MARKET_MAP = {        # target ticker -> foreign legs (yfinance symbols)
     "000660.KS": {"adr": "SKHY", "fx": "KRW=X", "adr_ratio": 10.0,
                   "regime_start": ADR_TWO_WAY_CONVERSION_DATE},
-    # TSMC: a MATURE dual-listing used to validate the METHOD, not to shortcut
-    # SK Hynix. 1 TSM ADR = 5 ordinary 2330.TW shares, so ADRs-per-local-share
-    # = 0.2. Two-way conversion has run normally for decades -> no regime split.
-    "2330.TW": {"adr": "TSM", "fx": "TWD=X", "adr_ratio": 0.2,
-                "regime_start": None},
-    # Mature dual-listings, deliberately spread across sector/region/regime so a
-    # shared result cannot be an artifact of picking similar names. Ratios are
-    # prospectus facts, each confirmed against the implied par ratio (the ratio
-    # that would put today's premium at 0) — a units check, not a signal fit:
-    #   7203.T    assumed 0.10  implied 0.1005    (1 TM ADR = 10 ordinary)
-    #   NOVO-B.CO assumed 1.00  implied 1.0037    (1 NVO ADR = 1 ordinary)
-    #   SHEL.L    assumed 50.0  implied 49.889    (1 SHEL ADR = 2 ordinary, and
-    #                                              the LSE quotes in PENCE: 0.5*100)
-    "7203.T": {"adr": "TM", "fx": "JPY=X", "adr_ratio": 0.1, "regime_start": None},
-    "NOVO-B.CO": {"adr": "NVO", "fx": "DKK=X", "adr_ratio": 1.0, "regime_start": None},
-    "SHEL.L": {"adr": "SHEL", "fx": "GBP=X", "adr_ratio": 50.0, "regime_start": None},
+    # NOTE: TSM/2330.TW, TM/7203.T, NVO/NOVO-B.CO and SHEL/SHEL.L were configured
+    # here temporarily to test whether the premium effect generalises across
+    # mature dual-listings. It does NOT — see docs/cross-market-validation.md.
+    # They are deliberately NOT kept in production config; re-add them only to
+    # reproduce that study.
     # substitute_fx backs the FX out of the USD-denominated substitute so the
     # holiday anchor is a KRW move, not a USD one: (1+r_krw)=(1+r_usd)(1+r_fx).
     "7709.HK": {"underlying": "000660.KS", "substitute": "SKHY",

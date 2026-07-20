@@ -380,19 +380,24 @@ def test_compute_indicators_dispatches_etf_snapshot(monkeypatch):
     json.dumps(tools._clean(out), allow_nan=False)        # strict-JSON clean
 
 
-def test_regime_start_is_per_pair_not_global():
+def test_regime_start_is_per_pair_not_global(monkeypatch):
     """Regression: a module-level regime default would gate a MATURE pair's
-    entire history away and look identical to 'no edge found'. 2330.TW has
-    regime_start=None, so its full history must survive even though SK Hynix's
-    conversion date is still in the future."""
-    assert config.CROSS_MARKET_MAP["2330.TW"]["regime_start"] is None
+    entire history away and look identical to 'no edge found'.
+
+    The ungated pair is injected rather than read from production config — the
+    mechanism is what needs protecting, and tying this to whichever tickers
+    happen to be configured would make the regression evaporate the next time
+    the map is tidied."""
+    monkeypatch.setitem(config.CROSS_MARKET_MAP, "MATURE.XX",
+                        {"adr": "MATUREADR", "fx": "XXX=X", "adr_ratio": 1.0,
+                         "regime_start": None})
     assert config.CROSS_MARKET_MAP["000660.KS"]["regime_start"] == \
         config.ADR_TWO_WAY_CONVERSION_DATE
 
     # Sample sits entirely BEFORE SK Hynix's conversion date.
     target, adr, fx = _long_legs(n=300, start="2020-01-01")
-    loader = lambda t: {"TSM": adr, "TWD=X": fx}.get(t)
-    sigs = cross_market.build_signals(target, "2330.TW", loader=loader)
+    loader = lambda t: {"MATUREADR": adr, "XXX=X": fx}.get(t)
+    sigs = cross_market.build_signals(target, "MATURE.XX", loader=loader)
     assert "xmkt_adr_premium" in sigs                 # ungated pair -> emits
     assert np.isfinite(sigs["xmkt_adr_premium"].iloc[-1])
 
