@@ -1,0 +1,13 @@
+# Optional ML dependencies for ml_patterns/ (the geometric_forward_return signal).
+#
+# DELIBERATELY SEPARATE from requirements.txt. The Feishu bot runs the engine via
+# tools.py and never touches ml_patterns/, so it should not inherit an XGBoost
+# build it will never import. Same isolation boundary as vendor/.
+#
+#   pip install -r requirements.txt -r requirements-ml.txt
+#
+# Nothing outside ml_patterns/ may import these — if a core module ever needs
+# them, that is a design error to fix, not a reason to merge the two files.
+-r requirements.txt
+xgboost>=2.0
+scikit-learn>=1.4
