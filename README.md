@@ -47,6 +47,31 @@ python tools.py council <TICKER>                   # council verdict only
 
 `null` in the JSON = that indicator was not computable; note it and continue.
 
+## Automated daily reports
+
+The repository can refresh selected assets after market close, generate a
+Markdown + JSON report, review the previous seven days, and maintain a
+prospective validation scorecard:
+
+```bash
+python daily_report.py --refresh
+```
+
+Assets live in `daily-report.json`; Circle Internet Group (`CRCL`) is configured
+by default. Reports are archived under `reports/daily/`. The included GitHub
+Actions workflow runs after the US close, optionally posts the report through a
+`FEISHU_WEBHOOK_URL` secret, and commits the durable archive back to Git.
+
+Normal analysis remains pinned. Daily automation advances data only through the
+explicit, failure-safe refresh command:
+
+```bash
+python tools.py refresh_data CRCL
+```
+
+See `docs/daily-report-automation.md` for scheduling, Feishu, multi-asset
+configuration, and the limits of the forward-validation scorecard.
+
 ## ⚠️ Silence is a valid answer — do not paper over it
 
 The `council` block is deterministic and **never fabricated**. When it returns

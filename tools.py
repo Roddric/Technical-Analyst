@@ -5,6 +5,7 @@ Exposes the tools prompt.py expects as JSON-emitting subcommands:
     python tools.py get_stock_data TICKER [n_rows]
     python tools.py compute_indicators TICKER        # classic suite + council verdict
     python tools.py council TICKER                   # council verdict only
+    python tools.py refresh_data TICKER              # explicitly advance pinned cache
 
 compute_indicators returns the structured classic-TA suite (Layer-1 facts) PLUS
 the mechanical council's evidence-weighted verdict under the "council" key, so
@@ -13,8 +14,11 @@ import json
 import math
 import sys
 
+import pandas as pd
+
 import config
 config.ensure_reuse_on_path()
+import price_cache
 
 import cross_market
 import indicators as ind
@@ -71,7 +75,7 @@ def get_stock_data(ticker: str, n_rows: int = 180) -> dict:
     return {"ticker": ticker, "n_rows": len(rows), "interval": "1d", "rows": rows}
 
 
-def compute_indicators(ticker: str) -> dict:
+def compute_indicators(ticker: str, record_trade: bool = True) -> dict:
     df = ind.get_stock_data(ticker)
     if df is None:
         return {"ticker": ticker, "error": "no data"}
@@ -99,8 +103,39 @@ def compute_indicators(ticker: str) -> dict:
             out["cross_market"] = {"available": False, "reason": "underlying data unavailable"}
     # Log the plan if it is actionable (one open plan per ticker; flat/veto skip).
     entry_date = str(df.index[-1].date())
-    out["logged"] = tradelog.record_plan(ticker, out["council"], entry_date)
+    out["logged"] = (
+        tradelog.record_plan(ticker, out["council"], entry_date)
+        if record_trade else False
+    )
     return out
+
+
+def refresh_data(ticker: str) -> dict:
+    """Explicitly advance the cache for a ticker and any configured foreign legs.
+
+    Normal analysis stays reproducibly pinned. Daily automation calls this
+    command before analysis so a failed fetch can fall back to the prior cache
+    without deleting it.
+    """
+    cfg = config.CROSS_MARKET_MAP.get(ticker, {})
+    targets = [ticker]
+    for key in ("adr", "fx", "underlying", "substitute", "substitute_fx"):
+        if cfg.get(key):
+            targets.append(cfg[key])
+
+    refreshed = {}
+    for target in dict.fromkeys(targets):
+        fresh = price_cache.refresh(target)
+        cached = price_cache.load(target)
+        refreshed[target] = {
+            "refresh_succeeded": fresh is not None,
+            "rows": int(len(cached)) if cached is not None else 0,
+            "market_asof": (
+                str(pd.Timestamp(cached.index[-1]).date())
+                if cached is not None and len(cached) else None
+            ),
+        }
+    return {"ticker": ticker, "targets": refreshed}
 
 
 def update_log() -> dict:
@@ -115,6 +150,7 @@ _DISPATCH = {
     "get_stock_data": lambda a: get_stock_data(a[0], int(a[1]) if len(a) > 1 else 180),
     "compute_indicators": lambda a: compute_indicators(a[0]),
     "council": lambda a: council_verdict(a[0]),
+    "refresh_data": lambda a: refresh_data(a[0]),
     "update_log": lambda a: update_log(),
 }
 
@@ -124,7 +160,8 @@ def main(argv=None) -> None:
     needs_ticker = argv[:1] != ["update_log"]
     if not argv or argv[0] not in _DISPATCH or (needs_ticker and len(argv) < 2):
         print(json.dumps({"error": "usage: tools.py <get_stock_data|compute_indicators|"
-                                    "council> TICKER [n_rows]  |  tools.py update_log",
+                                    "council|refresh_data> TICKER [n_rows]  |  "
+                                    "tools.py update_log",
                           "commands": list(_DISPATCH)}, indent=2))
         return
     result = _clean(_DISPATCH[argv[0]](argv[1:]))

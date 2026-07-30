@@ -67,3 +67,52 @@ def test_fetch_yf_falls_back_when_max_period_returns_empty(monkeypatch):
 def test_fetch_yf_empty_on_both_attempts_returns_none(monkeypatch):
     monkeypatch.setattr("yfinance.download", lambda *a, **k: pd.DataFrame())
     assert price_cache._fetch_yf("DELISTED") is None
+
+
+def _normalized_frame(start="2026-07-10", periods=3):
+    idx = pd.date_range(start, periods=periods, name="Date")
+    return pd.DataFrame({
+        "open": np.arange(periods) + 10.0,
+        "high": np.arange(periods) + 11.0,
+        "low": np.arange(periods) + 9.0,
+        "close": np.arange(periods) + 10.5,
+        "volume": np.arange(periods) + 100.0,
+    }, index=idx)
+
+
+def test_refresh_atomically_advances_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(price_cache, "CACHE_DIR", str(tmp_path))
+    old = _normalized_frame(periods=2)
+    old.to_csv(price_cache._path("CRCL"))
+    fresh = _normalized_frame(periods=4)
+    monkeypatch.setattr(price_cache, "_fetch", lambda ticker: fresh)
+
+    out = price_cache.refresh("CRCL")
+
+    assert out.equals(fresh)
+    cached = price_cache.load("CRCL")
+    assert len(cached) == 4
+    assert cached.index[-1] == fresh.index[-1]
+
+
+def test_refresh_failure_preserves_existing_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(price_cache, "CACHE_DIR", str(tmp_path))
+    old = _normalized_frame(periods=3)
+    old.to_csv(price_cache._path("CRCL"))
+    monkeypatch.setattr(price_cache, "_fetch", lambda ticker: None)
+
+    assert price_cache.refresh("CRCL") is None
+    cached = price_cache.load("CRCL")
+    assert len(cached) == 3
+    assert float(cached["close"].iloc[-1]) == float(old["close"].iloc[-1])
+
+
+def test_refresh_rejects_older_snapshot(monkeypatch, tmp_path):
+    monkeypatch.setattr(price_cache, "CACHE_DIR", str(tmp_path))
+    current = _normalized_frame(start="2026-07-10", periods=5)
+    current.to_csv(price_cache._path("CRCL"))
+    stale = _normalized_frame(start="2026-07-01", periods=2)
+    monkeypatch.setattr(price_cache, "_fetch", lambda ticker: stale)
+
+    assert price_cache.refresh("CRCL") is None
+    assert price_cache.load("CRCL").index[-1] == current.index[-1]

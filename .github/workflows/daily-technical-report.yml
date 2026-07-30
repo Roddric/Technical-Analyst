@@ -1,0 +1,54 @@
+name: Daily technical reports
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:30 Asia/Shanghai on the following day; safely after the US close
+    # throughout both daylight-saving and standard time.
+    - cron: "30 22 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-technical-reports
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Generate, review, validate, and optionally notify
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          publish_args=()
+          if [ -n "$FEISHU_WEBHOOK_URL" ]; then
+            publish_args+=(--publish-feishu)
+          fi
+          python daily_report.py --refresh "${publish_args[@]}"
+
+      - name: Commit and push the durable report archive
+        run: |
+          git config user.name "indicator-council-bot"
+          git config user.email "indicator-council-bot@users.noreply.github.com"
+          git add reports/daily
+          if git diff --cached --quiet; then
+            echo "No report changes to commit."
+          else
+            git commit -m "report: daily technical snapshot"
+            git push
+          fi

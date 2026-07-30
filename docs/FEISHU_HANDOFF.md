@@ -1,13 +1,17 @@
 # Feishu Bot ↔ OpenClaw Handoff Guide
 
-How to wire this Indicator Council system into the Feishu bot so OpenClaw can
-analyze stocks on demand, maintain a trade log, and run a watchlist.
+How to wire this Indicator Council system into Feishu so OpenClaw can analyze
+stocks on demand, maintain a trade log and watchlist, and receive scheduled
+daily technical reports.
 
 The division of labor: **this repo is the deterministic engine** (data +
 indicators + mechanical council + trade-log scorer). **OpenClaw is the analyst**
 — it runs the engine's commands, reasons over the JSON using the system prompt,
-writes the report, and maintains two Feishu docs. No scheduler: everything runs
-on-demand when the owner asks the bot to analyze something.
+writes the on-demand report, and maintains two Feishu docs. A separate
+**GitHub Actions daily pipeline** refreshes configured assets after market close,
+reviews the previous seven days, archives the evidence, and can post a report
+card into Feishu. The two paths share the same indicator engine and council
+verdict.
 
 ---
 
@@ -75,7 +79,7 @@ drift in shape over a long session, re-pasting is the fix.
 
 ---
 
-## Step 3 — Give OpenClaw these four commands
+## Step 3 — Give OpenClaw these five commands
 
 OpenClaw calls the engine only through `tools.py`. Grant it permission to run:
 
@@ -84,6 +88,7 @@ OpenClaw calls the engine only through `tools.py`. Grant it permission to run:
 | `python tools.py compute_indicators <TICKER>` | Main call — full indicator suite + council verdict as JSON. Also auto-logs an actionable council plan to the local store. |
 | `python tools.py get_stock_data <TICKER> [n_rows]` | Raw OHLCV rows, if the analyst wants to inspect price directly. |
 | `python tools.py council <TICKER>` | Just the mechanical council verdict. |
+| `python tools.py refresh_data <TICKER>` | Explicitly refresh the pinned cache, retaining the prior valid snapshot if fetching fails. |
 | `python tools.py update_log` | Re-scores every open plan against fresh prices; returns a Feishu-ready markdown table under `"markdown"`. |
 
 `<TICKER>` is any Yahoo symbol (e.g. `AAPL`, `NVDA`, `BTC-USD`, `^FTSE`, `0700.HK`).
@@ -165,7 +170,86 @@ move on. Do not estimate the premium yourself from prices in the report.
 
 ---
 
-## Step 6 — Dry-run to confirm the handoff
+## Step 7 — Enable scheduled daily reports
+
+The daily asset list is in `daily-report.json`. Circle Internet Group is
+configured as `CRCL` by default:
+
+```json
+{
+  "assets": [
+    {"ticker": "CRCL", "name": "Circle Internet Group"}
+  ],
+  "review_days": 7,
+  "validation_horizon": 5
+}
+```
+
+Test the full daily path from the project folder:
+
+```bash
+python daily_report.py --refresh
+```
+
+Expect four generated files under `reports/daily/CRCL/`:
+
+- `<MARKET-DATE>.md` and `<MARKET-DATE>.json` — immutable human and machine
+  snapshots;
+- `latest.md` and `latest.json` — convenient copies of the newest snapshot.
+
+The first report should say that no prior seven-day history exists and that the
+validation sample is insufficient. That is correct. Each later run compares the
+current facts with reports from the preceding seven calendar days. Once a
+directional report has five later trading bars, the forward scorecard evaluates
+it. Genuine council flats count as abstentions; bearish evidence suppressed by
+the long-only policy is scored as bearish for diagnostics even though no short
+trade was taken.
+
+### Turn on the GitHub schedule
+
+The workflow is `.github/workflows/daily-technical-report.yml`. It runs at
+22:30 UTC Monday through Friday, which is 06:30 the following day in
+Asia/Shanghai and safely after the US close.
+
+In the GitHub repository:
+
+1. Open **Settings → Actions → General → Workflow permissions**.
+2. Enable **Read and write permissions** so the job can commit
+   `reports/daily/`.
+3. If `main` is protected, allow the workflow identity to push or change the
+   workflow to open a pull request.
+4. Open **Actions → Daily technical reports → Run workflow** once manually.
+5. Confirm the dated report was committed before relying on the schedule.
+
+Daily generation does **not** log or open a trade. This is deliberate: report
+automation is not trading authorization. Add `--record-trade` only if the owner
+explicitly wants the scheduled process to create mechanical plans.
+
+### Turn on Feishu notification
+
+Create a Feishu custom bot for the destination chat, copy its webhook URL, then
+add it to GitHub Actions as a repository secret named:
+
+```text
+FEISHU_WEBHOOK_URL
+```
+
+When that secret exists, the scheduled workflow posts the completed report as
+an interactive card. If the secret is absent, generation, validation, archival,
+and Git pushing continue normally; only the Feishu notification is skipped.
+
+**Important boundary:** a custom-bot webhook posts a message card into a chat.
+It does **not** edit a Feishu cloud document. The existing trade-log and
+watchlist documents remain OpenClaw-managed through its Feishu document
+permissions. Automatic document replacement would require a Feishu app with
+document API credentials and a target document token; those credentials are not
+part of this repository and must never be stored in Git.
+
+The detailed operator guide is `docs/daily-report-automation.md`.
+
+---
+
+## Step 8 — Dry-run to confirm the handoff
 
 Ask the bot to analyze one clearly-trending name and one flat/choppy name:
 
@@ -174,8 +258,12 @@ Ask the bot to analyze one clearly-trending name and one flat/choppy name:
 - The flat name should land on the watchlist with its state — no plan.
 - Analyze a third ticker and confirm the bot **re-checked** the first two
   watchlist entries in the same turn.
+- Manually run the daily workflow and confirm a CRCL report appears in both the
+  Git archive and the configured Feishu chat.
+- Run it again for the same market date and confirm it replaces that date's
+  snapshot rather than creating a duplicate.
 
-Once those three behaviors show up, the bot is live.
+Once those checks pass, the bot is live.
 
 ---
 
@@ -199,3 +287,9 @@ Once those three behaviors show up, the bot is live.
 - **Data availability:** volume-based signals and some levels are `available:
   false` for assets without volume (indices, FX) — that's expected; the bot says
   so rather than inventing values.
+- **Latest daily data, not tick data:** `--refresh` advances to the newest daily
+  bar available from the provider. The scheduled report must not describe that
+  feed as a live intraday quote.
+- **Validation language:** the archived five-bar scorecard is prospective
+  validation of what reports actually said. It is not a cost-aware portfolio
+  backtest and makes no performance claim before 20 directional reports mature.

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 import time
 
 import pandas as pd
@@ -135,6 +136,39 @@ def load(tkr: str) -> pd.DataFrame | None:
     if df is not None and len(df) > 0:
         df.to_csv(path)
     return df
+
+
+def refresh(tkr: str) -> pd.DataFrame | None:
+    """Fetch and atomically replace a ticker's pinned snapshot.
+
+    Normal reads remain pinned through :func:`load`; callers must opt into a
+    refresh explicitly.  A failed or stale fetch never destroys a usable cache:
+    the old CSV is left untouched and ``None`` is returned.
+    """
+    path = _path(tkr)
+    current = None
+    if os.path.exists(path):
+        current = pd.read_csv(path, index_col=0, parse_dates=True)
+
+    fresh = _fetch(tkr)
+    if fresh is None or len(fresh) == 0:
+        return None
+    if current is not None and len(current):
+        current_last = pd.Timestamp(current.index.max())
+        fresh_last = pd.Timestamp(fresh.index.max())
+        if fresh_last < current_last:
+            return None
+
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{_safe(tkr)}.", suffix=".csv.tmp", dir=CACHE_DIR)
+    os.close(fd)
+    try:
+        fresh.to_csv(tmp_path)
+        os.replace(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+    return fresh
 
 
 def prime(tickers, sleep_s: float = 4.0) -> dict:

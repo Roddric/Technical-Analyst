@@ -1,0 +1,10 @@
+{
+  "assets": [
+    {
+      "ticker": "CRCL",
+      "name": "Circle Internet Group"
+    }
+  ],
+  "review_days": 7,
+  "validation_horizon": 5
+}
