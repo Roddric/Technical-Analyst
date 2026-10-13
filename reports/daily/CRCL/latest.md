@@ -1,32 +1,32 @@
 # Daily Technical Report — Circle Internet Group (CRCL)
 
-- Generated: 2026-10-10T01:50:46.978193+00:00
-- Latest daily market bar: 2026-10-09
+- Generated: 2026-10-13T03:06:11.345102+00:00
+- Latest daily market bar: 2026-10-12
 - Explicit data refresh: successful
 - Scope: technical analysis only; latest daily bars are not tick-level real-time quotes.
 
 ## 1. Stock overview
 
-Price is **84.51**, versus a 2026-04-13–2026-10-09 range of 57.84–140.00. It is -39.64% from the period high and 46.11% from the period low.
+Price is **83.87**, versus a 2026-04-14–2026-10-12 range of 57.84–140.00. It is -40.09% from the period high and 45.00% from the period low.
 
 ## 2. Trend analysis
 
-- SMA20 / SMA50 / SMA200: 86.66 / 83.32 / 86.03.
+- SMA20 / SMA50 / SMA200: 85.99 / 83.74 / 86.04.
 - Price position: SMA20 **below**, SMA50 **above**, SMA200 **below**.
-- EMA20 / EMA50: 85.36 / 84.25; stack **bullish**.
+- EMA20 / EMA50: 85.22 / 84.23; stack **bullish**.
 - Latest SMA50/200 event: death_cross (2026-06-30).
 
 ## 3. Momentum
 
-- RSI(14): **48.82** (neutral); divergence **none**.
-- MACD / signal / histogram: -1.1227 / -0.1796 / -0.9431.
+- RSI(14): **48.01** (neutral); divergence **none**.
+- MACD / signal / histogram: -1.0746 / -0.3586 / -0.7160.
 - MACD state: **bearish**, histogram **contracting**.
 
 ## 4. Volatility
 
-- Bollinger lower / mid / upper: 76.26 / 86.66 / 97.07; %B 0.397.
+- Bollinger lower / mid / upper: 76.77 / 85.99 / 95.20; %B 0.385.
 - Squeeze: **True**; volatility **contracting**.
-- ATR(14): 5.6310 (6.66% of price); expected daily range 5.63.
+- ATR(14): 5.4738 (6.53% of price); expected daily range 5.47.
 
 ## 5. Volume
 
@@ -36,21 +36,21 @@ Price is **84.51**, versus a 2026-04-13–2026-10-09 range of 57.84–140.00. It
 ## 6. Key levels
 
 - Quick 60-bar support / resistance: 57.84 / 103.28.
-- Distance to support / resistance: 31.56% / 22.21%; range reward:risk 0.70.
+- Distance to support / resistance: 31.04% / 23.14%; range reward:risk 0.75.
 
 **Confirmed supports**
 
-- 76.28 (10 touches; last 2026-09-16; -9.74% from price)
-- 64.92 (1 touches; last 2025-11-20; -23.18% from price)
-- 58.84 (6 touches; last 2026-08-03; -30.38% from price)
+- 76.28 (10 touches; last 2026-09-16; -9.05% from price)
+- 64.92 (1 touches; last 2025-11-20; -22.59% from price)
+- 58.84 (6 touches; last 2026-08-03; -29.84% from price)
 
 **Confirmed resistances**
 
-- 87.94 (10 touches; last 2026-10-02; 4.06% from price)
-- 101.32 (8 touches; last 2026-09-21; 19.89% from price)
-- 111.20 (1 touches; last 2026-04-17; 31.58% from price)
+- 87.94 (10 touches; last 2026-10-02; 4.85% from price)
+- 101.32 (8 touches; last 2026-09-21; 20.81% from price)
+- 111.20 (1 touches; last 2026-04-17; 32.59% from price)
 
-Dominant swing: **down**, 147.44 (2025-10-27) to 49.90 (2026-02-05). Nearest Fibonacci level is 0.382 at 87.16 (3.14% from price).
+Dominant swing: **down**, 147.44 (2025-10-27) to 49.90 (2026-02-05). Nearest Fibonacci level is 0.382 at 87.16 (3.92% from price).
 
 ## 7. Indicator conflicts and risks
 
@@ -68,28 +68,28 @@ The council state is **flat position; bearish evidence suppressed by long-only p
   "direction": "flat",
   "conviction": 0.0,
   "effective_breadth": 1.9,
-  "entry": 84.51,
-  "stop": 84.51,
-  "target": 84.51,
+  "entry": 83.87,
+  "stop": 83.87,
+  "target": 83.87,
   "long_only_suppressed": true
 }
 ```
 
 ## 9. Seven-day report review
 
-Compared with **5** prior report(s) from 2026-10-02 through 2026-10-09, price changed **4.01%**. RSI ranged from 43.78 to 48.82. Council state changed 0 time(s).
+Compared with **5** prior report(s) from 2026-10-05 through 2026-10-12, price changed **0.68%**. RSI ranged from 43.78 to 48.82. Council state changed 0 time(s).
 
 | market date | price | RSI | EMA stack | MACD | council | conviction |
 |---|---:|---:|---|---|---|---:|
-| 2026-10-02 | 81.25 | 43.81 | bullish | bearish | bearish / suppressed | 0.000 |
 | 2026-10-05 | 83.30 | 46.35 | bullish | bearish | bearish / suppressed | 0.000 |
 | 2026-10-06 | 84.13 | 47.39 | bullish | bearish | bearish / suppressed | 0.000 |
 | 2026-10-07 | 80.84 | 43.78 | bullish | bearish | bearish / suppressed | 0.000 |
 | 2026-10-08 | 80.84 | 43.78 | bullish | bearish | bearish / suppressed | 0.000 |
 | 2026-10-09 | 84.51 | 48.82 | bullish | bearish | bearish / suppressed | 0.000 |
+| 2026-10-12 | 83.87 | 48.01 | bullish | bearish | bearish / suppressed | 0.000 |
 
 ## 10. Backtesting and validation
 
-Archived-signal scorecard: **insufficient sample**. At a 5-bar horizon, 6 directional report(s) have matured, 5 are pending, and 40 were honest abstentions.
-Observed directional hit rate is 66.67% and mean signed forward return is -0.38%.
+Archived-signal scorecard: **insufficient sample**. At a 5-bar horizon, 7 directional report(s) have matured, 5 are pending, and 40 were honest abstentions.
+Observed directional hit rate is 57.14% and mean signed forward return is -0.42%.
 No performance claim is made until at least 20 directional reports mature. This is prospective validation of archived calls—not a replacement for a cost-aware portfolio backtest with slippage, turnover, and benchmark comparison.
