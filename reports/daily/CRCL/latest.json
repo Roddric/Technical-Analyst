@@ -2,98 +2,98 @@
   "schema_version": 1,
   "ticker": "CRCL",
   "name": "Circle Internet Group",
-  "generated_at": "2026-10-13T03:06:11.345102+00:00",
-  "market_asof": "2026-10-12",
+  "generated_at": "2026-10-14T01:18:29.803869+00:00",
+  "market_asof": "2026-10-13",
   "refresh": {
     "ticker": "CRCL",
     "targets": {
       "CRCL": {
         "refresh_succeeded": true,
-        "rows": 340,
-        "market_asof": "2026-10-12"
+        "rows": 341,
+        "market_asof": "2026-10-13"
       }
     }
   },
   "indicators": {
     "overview": {
-      "current_price": 83.87,
-      "period_start": "2026-04-14",
-      "period_end": "2026-10-12",
-      "n_bars_total": 340,
+      "current_price": 84.27,
+      "period_start": "2026-04-15",
+      "period_end": "2026-10-13",
+      "n_bars_total": 341,
       "period_high": 140.0,
       "period_low": 57.84,
-      "pct_from_high": -40.09,
-      "pct_from_low": 45.0
+      "pct_from_high": -39.81,
+      "pct_from_low": 45.7
     },
     "trend": {
-      "sma20": 85.99,
-      "sma50": 83.74,
-      "sma200": 86.04,
+      "sma20": 85.89,
+      "sma50": 84.22,
+      "sma200": 86.05,
       "price_vs_sma20": "below",
       "price_vs_sma50": "above",
       "price_vs_sma200": "below",
-      "ema20": 85.22,
+      "ema20": 85.13,
       "ema50": 84.23,
       "ema_stack": "bullish",
       "sma50_200_cross": "death_cross",
       "cross_date": "2026-06-30"
     },
     "momentum": {
-      "rsi": 48.01,
+      "rsi": 48.59,
       "rsi_zone": "neutral",
       "rsi_divergence": "none",
-      "macd": -1.0746,
-      "macd_signal": -0.3586,
-      "macd_hist": -0.716,
+      "macd": -0.9927,
+      "macd_signal": -0.4854,
+      "macd_hist": -0.5073,
       "macd_cross": "bearish",
       "macd_hist_trend": "contracting"
     },
     "volatility": {
-      "bb_upper": 95.2,
-      "bb_mid": 85.99,
-      "bb_lower": 76.77,
-      "percent_b": 0.385,
+      "bb_upper": 95.13,
+      "bb_mid": 85.89,
+      "bb_lower": 76.64,
+      "percent_b": 0.413,
       "bb_squeeze": true,
-      "atr": 5.4738,
-      "atr_pct": 6.53,
-      "expected_daily_range": 5.47,
+      "atr": 5.32,
+      "atr_pct": 6.31,
+      "expected_daily_range": 5.32,
       "volatility_direction": "contracting"
     },
     "volume": {
       "available": true,
       "obv_trend": "rising",
-      "obv_strength": "weak",
-      "price_confirmation": false,
-      "divergence": "bullish_accumulation"
+      "obv_strength": "moderate",
+      "price_confirmation": true,
+      "divergence": "none"
     },
     "levels": {
       "support": 57.84,
       "resistance": 103.28,
-      "dist_to_support_pct": 31.04,
-      "dist_to_resistance_pct": 23.14,
-      "risk_reward": 0.75
+      "dist_to_support_pct": 31.36,
+      "dist_to_resistance_pct": 22.56,
+      "risk_reward": 0.72
     },
     "support_resistance": {
       "available": true,
       "method": "swing pivots k=3 over 250 bars, clustered within 0.5xATR",
       "supports": [
         {
-          "price": 76.28,
-          "touches": 10,
-          "last_touch": "2026-09-16",
-          "dist_pct": -9.05
+          "price": 76.52,
+          "touches": 11,
+          "last_touch": "2026-10-08",
+          "dist_pct": -9.2
         },
         {
           "price": 64.92,
           "touches": 1,
           "last_touch": "2025-11-20",
-          "dist_pct": -22.59
+          "dist_pct": -22.96
         },
         {
           "price": 58.84,
           "touches": 6,
           "last_touch": "2026-08-03",
-          "dist_pct": -29.84
+          "dist_pct": -30.18
         }
       ],
       "resistances": [
@@ -101,22 +101,22 @@
           "price": 87.94,
           "touches": 10,
           "last_touch": "2026-10-02",
-          "dist_pct": 4.85
+          "dist_pct": 4.36
         },
         {
           "price": 101.32,
           "touches": 8,
           "last_touch": "2026-09-21",
-          "dist_pct": 20.81
+          "dist_pct": 20.23
         },
         {
           "price": 111.2,
           "touches": 1,
           "last_touch": "2026-04-17",
-          "dist_pct": 32.59
+          "dist_pct": 31.96
         }
       ],
-      "nearest_support": 76.28,
+      "nearest_support": 76.52,
       "nearest_resistance": 87.94
     },
     "fibonacci": {
@@ -172,7 +172,7 @@
       "nearest_level": {
         "ratio": 0.382,
         "price": 87.16,
-        "dist_pct": 3.92
+        "dist_pct": 3.43
       }
     },
     "ticker": "CRCL",
@@ -180,18 +180,15 @@
       "available": true,
       "direction": "flat",
       "conviction": 0.0,
-      "effective_breadth": 1.9,
-      "max_inter_set_corr": 0.9,
+      "effective_breadth": 0.0,
+      "max_inter_set_corr": 0.93,
       "veto": true,
-      "long_only_suppressed": true,
-      "entry": 83.87,
-      "stop": 83.87,
-      "target": 83.87,
+      "long_only_suppressed": false,
+      "entry": 84.27,
+      "stop": 84.27,
+      "target": 84.27,
       "size_fraction": 0.0,
-      "set_contributions": {
-        "Set5": -0.2554,
-        "Set6": -0.3985
-      },
+      "set_contributions": {},
       "note": "direction/conviction are a deterministic function of out-of-sample IC; every number is rule-derived. eff_breadth<1.5 => one set dominates. eff_breadth is in-sample-optimistic (sets decorrelate less OOS), so it is an upper bound \u2014 weight the evidence, not the count. System is LONG-ONLY: direction is never 'short'. long_only_suppressed=true means the raw signal was bearish and was forced flat (no position) \u2014 read it as a bearish signal, NOT as 'no edge'."
     },
     "logged": false
@@ -199,22 +196,20 @@
   "seven_day_review": {
     "window_days": 7,
     "prior_reports_found": 5,
-    "window_start": "2026-10-05",
-    "window_end": "2026-10-12",
-    "price_change_pct": 0.684273709483807,
+    "window_start": "2026-10-06",
+    "window_end": "2026-10-13",
+    "price_change_pct": 0.166409128729339,
     "rsi_min": 43.78,
     "rsi_max": 48.82,
-    "council_transitions": [],
-    "rows": [
+    "council_transitions": [
       {
-        "market_asof": "2026-10-05",
-        "price": 83.3,
-        "rsi": 46.35,
-        "macd_cross": "bearish",
-        "ema_stack": "bullish",
-        "council_state": "bearish / suppressed",
-        "conviction": 0.0
-      },
+        "from_date": "2026-10-12",
+        "to_date": "2026-10-13",
+        "from": "bearish / suppressed",
+        "to": "flat"
+      }
+    ],
+    "rows": [
       {
         "market_asof": "2026-10-06",
         "price": 84.13,
@@ -259,6 +254,15 @@
         "ema_stack": "bullish",
         "council_state": "bearish / suppressed",
         "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-10-13",
+        "price": 84.27,
+        "rsi": 48.59,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "flat",
+        "conviction": 0.0
       }
     ]
   },
@@ -266,13 +270,13 @@
     "status": "insufficient sample",
     "minimum_sample": 20,
     "horizon_bars": 5,
-    "n_archived": 52,
+    "n_archived": 53,
     "n_directional": 12,
-    "n_matured": 7,
-    "n_pending": 5,
-    "n_abstained": 40,
-    "hit_rate": 0.5714285714285714,
-    "avg_signed_return": -0.004240550901646973,
+    "n_matured": 8,
+    "n_pending": 4,
+    "n_abstained": 41,
+    "hit_rate": 0.5,
+    "avg_signed_return": -0.003918493449852775,
     "outcomes": [
       {
         "market_asof": "2026-09-16",
@@ -342,6 +346,16 @@
         "exit": 83.87,
         "realized_return": 0.0068427370948380695,
         "signed_return": -0.0068427370948380695,
+        "correct": false
+      },
+      {
+        "market_asof": "2026-10-06",
+        "direction": "bearish",
+        "entry": 84.13,
+        "exit_date": "2026-10-13",
+        "exit": 84.27,
+        "realized_return": 0.00166409128729339,
+        "signed_return": -0.00166409128729339,
         "correct": false
       }
     ]
