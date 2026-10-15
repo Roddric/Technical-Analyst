@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "ticker": "CRCL",
+  "name": "Circle Internet Group",
+  "generated_at": "2026-10-15T00:40:46.034369+00:00",
+  "market_asof": "2026-10-14",
+  "refresh": {
+    "ticker": "CRCL",
+    "targets": {
+      "CRCL": {
+        "refresh_succeeded": true,
+        "rows": 342,
+        "market_asof": "2026-10-14"
+      }
+    }
+  },
+  "indicators": {
+    "overview": {
+      "current_price": 79.55,
+      "period_start": "2026-04-16",
+      "period_end": "2026-10-14",
+      "n_bars_total": 342,
+      "period_high": 140.0,
+      "period_low": 57.84,
+      "pct_from_high": -43.18,
+      "pct_from_low": 37.53
+    },
+    "trend": {
+      "sma20": 85.84,
+      "sma50": 84.55,
+      "sma200": 86.04,
+      "price_vs_sma20": "below",
+      "price_vs_sma50": "below",
+      "price_vs_sma200": "below",
+      "ema20": 84.6,
+      "ema50": 84.05,
+      "ema_stack": "bullish",
+      "sma50_200_cross": "death_cross",
+      "cross_date": "2026-06-30"
+    },
+    "momentum": {
+      "rsi": 42.61,
+      "rsi_zone": "neutral",
+      "rsi_divergence": "none",
+      "macd": -1.2938,
+      "macd_signal": -0.6471,
+      "macd_hist": -0.6467,
+      "macd_cross": "bearish",
+      "macd_hist_trend": "contracting"
+    },
+    "volatility": {
+      "bb_upper": 95.2,
+      "bb_mid": 85.84,
+      "bb_lower": 76.48,
+      "percent_b": 0.164,
+      "bb_squeeze": true,
+      "atr": 5.3677,
+      "atr_pct": 6.75,
+      "expected_daily_range": 5.37,
+      "volatility_direction": "contracting"
+    },
+    "volume": {
+      "available": true,
+      "obv_trend": "rising",
+      "obv_strength": "weak",
+      "price_confirmation": false,
+      "divergence": "bullish_accumulation"
+    },
+    "levels": {
+      "support": 57.84,
+      "resistance": 103.28,
+      "dist_to_support_pct": 27.29,
+      "dist_to_resistance_pct": 29.83,
+      "risk_reward": 1.09
+    },
+    "support_resistance": {
+      "available": true,
+      "method": "swing pivots k=3 over 250 bars, clustered within 0.5xATR",
+      "supports": [
+        {
+          "price": 76.52,
+          "touches": 11,
+          "last_touch": "2026-10-08",
+          "dist_pct": -3.81
+        },
+        {
+          "price": 64.92,
+          "touches": 1,
+          "last_touch": "2025-11-20",
+          "dist_pct": -18.39
+        },
+        {
+          "price": 58.84,
+          "touches": 6,
+          "last_touch": "2026-08-03",
+          "dist_pct": -26.03
+        }
+      ],
+      "resistances": [
+        {
+          "price": 87.91,
+          "touches": 11,
+          "last_touch": "2026-10-09",
+          "dist_pct": 10.51
+        },
+        {
+          "price": 101.32,
+          "touches": 8,
+          "last_touch": "2026-09-21",
+          "dist_pct": 27.37
+        },
+        {
+          "price": 111.2,
+          "touches": 1,
+          "last_touch": "2026-04-17",
+          "dist_pct": 39.79
+        }
+      ],
+      "nearest_support": 76.52,
+      "nearest_resistance": 87.91
+    },
+    "fibonacci": {
+      "available": true,
+      "swing": {
+        "direction": "down",
+        "high": 147.44,
+        "high_date": "2025-10-27",
+        "low": 49.9,
+        "low_date": "2026-02-05",
+        "amplitude_pct": 195.47,
+        "window_bars": 250
+      },
+      "retracements": [
+        {
+          "ratio": 0.236,
+          "price": 72.92,
+          "pos": "below"
+        },
+        {
+          "ratio": 0.382,
+          "price": 87.16,
+          "pos": "above"
+        },
+        {
+          "ratio": 0.5,
+          "price": 98.67,
+          "pos": "above"
+        },
+        {
+          "ratio": 0.618,
+          "price": 110.18,
+          "pos": "above"
+        },
+        {
+          "ratio": 0.786,
+          "price": 126.57,
+          "pos": "above"
+        }
+      ],
+      "extensions": [
+        {
+          "ratio": 1.272,
+          "price": 23.37,
+          "pos": "below"
+        },
+        {
+          "ratio": 1.618,
+          "price": -10.38,
+          "pos": "below"
+        }
+      ],
+      "nearest_level": {
+        "ratio": 0.236,
+        "price": 72.92,
+        "dist_pct": -8.33
+      }
+    },
+    "ticker": "CRCL",
+    "council": {
+      "available": true,
+      "direction": "flat",
+      "conviction": 0.0,
+      "effective_breadth": 1.0,
+      "max_inter_set_corr": 0.87,
+      "veto": true,
+      "long_only_suppressed": true,
+      "entry": 79.55,
+      "stop": 79.55,
+      "target": 79.55,
+      "size_fraction": 0.0,
+      "set_contributions": {
+        "Set4": -0.8895
+      },
+      "note": "direction/conviction are a deterministic function of out-of-sample IC; every number is rule-derived. eff_breadth<1.5 => one set dominates. eff_breadth is in-sample-optimistic (sets decorrelate less OOS), so it is an upper bound \u2014 weight the evidence, not the count. System is LONG-ONLY: direction is never 'short'. long_only_suppressed=true means the raw signal was bearish and was forced flat (no position) \u2014 read it as a bearish signal, NOT as 'no edge'."
+    },
+    "logged": false
+  },
+  "seven_day_review": {
+    "window_days": 7,
+    "prior_reports_found": 5,
+    "window_start": "2026-10-07",
+    "window_end": "2026-10-14",
+    "price_change_pct": -1.5957446808510745,
+    "rsi_min": 42.61,
+    "rsi_max": 48.82,
+    "council_transitions": [
+      {
+        "from_date": "2026-10-12",
+        "to_date": "2026-10-13",
+        "from": "bearish / suppressed",
+        "to": "flat"
+      },
+      {
+        "from_date": "2026-10-13",
+        "to_date": "2026-10-14",
+        "from": "flat",
+        "to": "bearish / suppressed"
+      }
+    ],
+    "rows": [
+      {
+        "market_asof": "2026-10-07",
+        "price": 80.84,
+        "rsi": 43.78,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "bearish / suppressed",
+        "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-10-08",
+        "price": 80.84,
+        "rsi": 43.78,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "bearish / suppressed",
+        "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-10-09",
+        "price": 84.51,
+        "rsi": 48.82,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "bearish / suppressed",
+        "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-10-12",
+        "price": 83.87,
+        "rsi": 48.01,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "bearish / suppressed",
+        "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-10-13",
+        "price": 84.27,
+        "rsi": 48.59,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "flat",
+        "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-10-14",
+        "price": 79.55,
+        "rsi": 42.61,
+        "macd_cross": "bearish",
+        "ema_stack": "bullish",
+        "council_state": "bearish / suppressed",
+        "conviction": 0.0
+      }
+    ]
+  },
+  "validation": {
+    "status": "insufficient sample",
+    "minimum_sample": 20,
+    "horizon_bars": 5,
+    "n_archived": 54,
+    "n_directional": 13,
+    "n_matured": 9,
+    "n_pending": 4,
+    "n_abstained": 41,
+    "hit_rate": 0.5555555555555556,
+    "avg_signed_return": -0.0017100556433679397,
+    "outcomes": [
+      {
+        "market_asof": "2026-09-16",
+        "direction": "bearish",
+        "entry": 80.45,
+        "exit_date": "2026-09-23",
+        "exit": 91.72,
+        "realized_return": 0.14008701056556871,
+        "signed_return": -0.14008701056556871,
+        "correct": false
+      },
+      {
+        "market_asof": "2026-09-25",
+        "direction": "bearish",
+        "entry": 89.0,
+        "exit_date": "2026-10-02",
+        "exit": 81.25,
+        "realized_return": -0.0870786516853933,
+        "signed_return": 0.0870786516853933,
+        "correct": true
+      },
+      {
+        "market_asof": "2026-09-28",
+        "direction": "bearish",
+        "entry": 85.8,
+        "exit_date": "2026-10-05",
+        "exit": 83.3,
+        "realized_return": -0.029137529137529095,
+        "signed_return": 0.029137529137529095,
+        "correct": true
+      },
+      {
+        "market_asof": "2026-09-30",
+        "direction": "bearish",
+        "entry": 82.17,
+        "exit_date": "2026-10-07",
+        "exit": 80.84,
+        "realized_return": -0.01618595594499206,
+        "signed_return": 0.01618595594499206,
+        "correct": true
+      },
+      {
+        "market_asof": "2026-10-01",
+        "direction": "bearish",
+        "entry": 82.91,
+        "exit_date": "2026-10-08",
+        "exit": 80.84,
+        "realized_return": -0.024966831504040443,
+        "signed_return": 0.024966831504040443,
+        "correct": true
+      },
+      {
+        "market_asof": "2026-10-02",
+        "direction": "bearish",
+        "entry": 81.25,
+        "exit_date": "2026-10-09",
+        "exit": 84.51,
+        "realized_return": 0.04012307692307693,
+        "signed_return": -0.04012307692307693,
+        "correct": false
+      },
+      {
+        "market_asof": "2026-10-05",
+        "direction": "bearish",
+        "entry": 83.3,
+        "exit_date": "2026-10-12",
+        "exit": 83.87,
+        "realized_return": 0.0068427370948380695,
+        "signed_return": -0.0068427370948380695,
+        "correct": false
+      },
+      {
+        "market_asof": "2026-10-06",
+        "direction": "bearish",
+        "entry": 84.13,
+        "exit_date": "2026-10-13",
+        "exit": 84.27,
+        "realized_return": 0.00166409128729339,
+        "signed_return": -0.00166409128729339,
+        "correct": false
+      },
+      {
+        "market_asof": "2026-10-07",
+        "direction": "bearish",
+        "entry": 80.84,
+        "exit_date": "2026-10-14",
+        "exit": 79.55,
+        "realized_return": -0.015957446808510745,
+        "signed_return": 0.015957446808510745,
+        "correct": true
+      }
+    ]
+  }
+}
