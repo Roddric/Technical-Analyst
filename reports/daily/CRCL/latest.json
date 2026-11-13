@@ -2,61 +2,61 @@
   "schema_version": 1,
   "ticker": "CRCL",
   "name": "Circle Internet Group",
-  "generated_at": "2026-11-12T03:12:20.364727+00:00",
-  "market_asof": "2026-11-11",
+  "generated_at": "2026-11-13T02:44:28.253821+00:00",
+  "market_asof": "2026-11-12",
   "refresh": {
     "ticker": "CRCL",
     "targets": {
       "CRCL": {
         "refresh_succeeded": true,
-        "rows": 362,
-        "market_asof": "2026-11-11"
+        "rows": 363,
+        "market_asof": "2026-11-12"
       }
     }
   },
   "indicators": {
     "overview": {
-      "current_price": 67.12,
-      "period_start": "2026-05-14",
-      "period_end": "2026-11-11",
-      "n_bars_total": 362,
-      "period_high": 132.44,
+      "current_price": 63.82,
+      "period_start": "2026-05-15",
+      "period_end": "2026-11-12",
+      "n_bars_total": 363,
+      "period_high": 118.85,
       "period_low": 57.84,
-      "pct_from_high": -49.32,
-      "pct_from_low": 16.04
+      "pct_from_high": -46.3,
+      "pct_from_low": 10.34
     },
     "trend": {
-      "sma20": 77.74,
-      "sma50": 84.0,
-      "sma200": 85.94,
+      "sma20": 76.58,
+      "sma50": 83.5,
+      "sma200": 85.9,
       "price_vs_sma20": "below",
       "price_vs_sma50": "below",
       "price_vs_sma200": "below",
-      "ema20": 75.33,
-      "ema50": 79.7,
+      "ema20": 74.23,
+      "ema50": 79.08,
       "ema_stack": "bearish",
       "sma50_200_cross": "death_cross",
       "cross_date": "2026-11-05"
     },
     "momentum": {
-      "rsi": 35.97,
+      "rsi": 32.92,
       "rsi_zone": "neutral",
       "rsi_divergence": "none",
-      "macd": -4.6936,
-      "macd_signal": -3.3846,
-      "macd_hist": -1.309,
+      "macd": -5.0139,
+      "macd_signal": -3.7105,
+      "macd_hist": -1.3035,
       "macd_cross": "bearish",
       "macd_hist_trend": "contracting"
     },
     "volatility": {
-      "bb_upper": 92.75,
-      "bb_mid": 77.74,
-      "bb_lower": 62.73,
-      "percent_b": 0.146,
+      "bb_upper": 92.12,
+      "bb_mid": 76.58,
+      "bb_lower": 61.04,
+      "percent_b": 0.089,
       "bb_squeeze": false,
-      "atr": 5.3285,
-      "atr_pct": 7.94,
-      "expected_daily_range": 5.33,
+      "atr": 5.2586,
+      "atr_pct": 8.24,
+      "expected_daily_range": 5.26,
       "volatility_direction": "expanding"
     },
     "volume": {
@@ -67,57 +67,51 @@
       "divergence": "none"
     },
     "levels": {
-      "support": 63.56,
+      "support": 62.77,
       "resistance": 103.28,
-      "dist_to_support_pct": 5.3,
-      "dist_to_resistance_pct": 53.87,
-      "risk_reward": 10.16
+      "dist_to_support_pct": 1.65,
+      "dist_to_resistance_pct": 61.83,
+      "risk_reward": 37.58
     },
     "support_resistance": {
       "available": true,
       "method": "swing pivots k=3 over 250 bars, clustered within 0.5xATR",
       "supports": [
         {
-          "price": 64.92,
-          "touches": 1,
-          "last_touch": "2025-11-20",
-          "dist_pct": -3.28
-        },
-        {
           "price": 58.84,
           "touches": 6,
           "last_touch": "2026-08-03",
-          "dist_pct": -12.34
+          "dist_pct": -7.8
         },
         {
           "price": 49.9,
           "touches": 1,
           "last_touch": "2026-02-05",
-          "dist_pct": -25.66
+          "dist_pct": -21.81
         }
       ],
       "resistances": [
         {
+          "price": 64.92,
+          "touches": 1,
+          "last_touch": "2025-11-20",
+          "dist_pct": 1.72
+        },
+        {
           "price": 76.11,
           "touches": 14,
           "last_touch": "2026-11-04",
-          "dist_pct": 13.39
+          "dist_pct": 19.26
         },
         {
           "price": 88.22,
           "touches": 13,
           "last_touch": "2026-10-21",
-          "dist_pct": 31.44
-        },
-        {
-          "price": 101.32,
-          "touches": 8,
-          "last_touch": "2026-09-21",
-          "dist_pct": 50.95
+          "dist_pct": 38.23
         }
       ],
-      "nearest_support": 64.92,
-      "nearest_resistance": 76.11
+      "nearest_support": 58.84,
+      "nearest_resistance": 64.92
     },
     "fibonacci": {
       "available": true,
@@ -172,7 +166,7 @@
       "nearest_level": {
         "ratio": 0.786,
         "price": 69.18,
-        "dist_pct": 3.07
+        "dist_pct": 8.4
       }
     },
     "ticker": "CRCL",
@@ -184,9 +178,9 @@
       "max_inter_set_corr": 0.85,
       "veto": true,
       "long_only_suppressed": false,
-      "entry": 67.12,
-      "stop": 67.12,
-      "target": 67.12,
+      "entry": 63.82,
+      "stop": 63.82,
+      "target": 63.82,
       "size_fraction": 0.0,
       "set_contributions": {},
       "note": "direction/conviction are a deterministic function of out-of-sample IC; every number is rule-derived. eff_breadth<1.5 => one set dominates. eff_breadth is in-sample-optimistic (sets decorrelate less OOS), so it is an upper bound \u2014 weight the evidence, not the count. System is LONG-ONLY: direction is never 'short'. long_only_suppressed=true means the raw signal was bearish and was forced flat (no position) \u2014 read it as a bearish signal, NOT as 'no edge'."
@@ -196,22 +190,13 @@
   "seven_day_review": {
     "window_days": 7,
     "prior_reports_found": 5,
-    "window_start": "2026-11-04",
-    "window_end": "2026-11-11",
-    "price_change_pct": -11.823436678928012,
+    "window_start": "2026-11-05",
+    "window_end": "2026-11-12",
+    "price_change_pct": -8.14622913068509,
     "rsi_min": 32.18,
-    "rsi_max": 42.67,
+    "rsi_max": 36.13,
     "council_transitions": [],
     "rows": [
-      {
-        "market_asof": "2026-11-04",
-        "price": 76.12,
-        "rsi": 42.67,
-        "macd_cross": "bearish",
-        "ema_stack": "bearish",
-        "council_state": "flat",
-        "conviction": 0.0
-      },
       {
         "market_asof": "2026-11-05",
         "price": 69.48,
@@ -256,6 +241,15 @@
         "ema_stack": "bearish",
         "council_state": "flat",
         "conviction": 0.0
+      },
+      {
+        "market_asof": "2026-11-12",
+        "price": 63.82,
+        "rsi": 32.92,
+        "macd_cross": "bearish",
+        "ema_stack": "bearish",
+        "council_state": "flat",
+        "conviction": 0.0
       }
     ]
   },
@@ -263,11 +257,11 @@
     "status": "insufficient sample",
     "minimum_sample": 20,
     "horizon_bars": 5,
-    "n_archived": 74,
+    "n_archived": 75,
     "n_directional": 13,
     "n_matured": 13,
     "n_pending": 0,
-    "n_abstained": 61,
+    "n_abstained": 62,
     "hit_rate": 0.5384615384615384,
     "avg_signed_return": -0.012464022564178898,
     "outcomes": [
