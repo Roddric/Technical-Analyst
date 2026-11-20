@@ -2,15 +2,15 @@
   "schema_version": 1,
   "ticker": "CRCL",
   "name": "Circle Internet Group",
-  "generated_at": "2026-11-19T03:44:21.951477+00:00",
+  "generated_at": "2026-11-20T03:37:38.886271+00:00",
   "market_asof": "2026-11-18",
   "refresh": {
     "ticker": "CRCL",
     "targets": {
       "CRCL": {
         "refresh_succeeded": true,
-        "rows": 367,
-        "market_asof": "2026-11-18"
+        "rows": 368,
+        "market_asof": "2026-11-19"
       }
     }
   },
