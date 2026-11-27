@@ -1,6 +1,6 @@
 # Daily Technical Report — Circle Internet Group (CRCL)
 
-- Generated: 2026-11-26T04:14:29.341846+00:00
+- Generated: 2026-11-27T04:23:28.692122+00:00
 - Latest daily market bar: 2026-11-25
 - Explicit data refresh: successful
 - Scope: technical analysis only; latest daily bars are not tick-level real-time quotes.
